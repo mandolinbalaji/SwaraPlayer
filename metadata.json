@@ -1,0 +1,5 @@
+{
+  "name": "Carnatic Notation Writer",
+  "description": "A specialized editor for Carnatic music notation with playback, virtual keyboard, and octave indicators.",
+  "requestFramePermissions": []
+}
