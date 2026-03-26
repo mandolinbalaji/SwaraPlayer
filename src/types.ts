@@ -3,11 +3,14 @@ export type Octave = 'normal' | 'above' | 'below';
 export interface MetaData {
   song: string;
   raga: string;
-  ragaNotes: string; // e.g. "R2 G3 M1 D2 N3"
+  scale: string; // e.g. "r2 g2 m1 d2 n2"
   beats: number;
   nadai: number;
   sruthi: string;
   bpm: number;
+  thala: string;
+  edam: string;
+  tags: string;
 }
 
 export const SWARASTHANA_OFFSETS: Record<string, number> = {

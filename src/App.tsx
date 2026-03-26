@@ -37,10 +37,10 @@ const getGraphemes = (text: string) => {
   return text.match(/.\u0323?|./gu) || [];
 };
 
-const getSemitones = (note: string, ragaNotes: string) => {
-  // 1. Parse ragaNotes into a map
+const getSemitones = (note: string, scale: string) => {
+  // 1. Parse scale into a map
   const defaultMap: Record<string, number> = {};
-  const ragaMatches = ragaNotes.match(/[SRGMPDN][123]?/gi) || [];
+  const ragaMatches = scale.match(/[SRGMPDN][123]?/gi) || [];
   ragaMatches.forEach(m => {
     const base = m[0].toUpperCase();
     defaultMap[base] = SWARASTHANA_OFFSETS[m.toUpperCase()] ?? 0;
@@ -74,11 +74,14 @@ export default function App() {
   const [meta, setMeta] = useState<MetaData>({
     song: 'Varnam',
     raga: 'Mayamalavagowla',
-    ragaNotes: 'R1 G3 M1 D1 N3',
+    scale: 'R1 G3 M1 D1 N3',
     beats: 8,
     nadai: 4,
     sruthi: 'C#',
-    bpm: 80
+    bpm: 80,
+    thala: '',
+    edam: '',
+    tags: ''
   });
   const [octave, setOctave] = useState<Octave>('normal');
   const [autoTala, setAutoTala] = useState(true);
@@ -116,7 +119,7 @@ export default function App() {
 
     // Play note immediately for feedback
     if (charToAdd !== ',' && charToAdd !== '|') {
-      const semitones = getSemitones(charToAdd, meta.ragaNotes);
+      const semitones = getSemitones(charToAdd, meta.scale);
       audioEngine.playNote(semitones, meta.sruthi, 0.3);
     }
 
@@ -146,7 +149,7 @@ export default function App() {
       if (['S', 'R', 'G', 'M', 'P', 'D', 'N'].includes(charAdded) || 
           Object.values(DOT_ABOVE_MAP).includes(charAdded) || 
           Object.values(DOT_BELOW_MAP).includes(charAdded)) {
-        const semitones = getSemitones(charAdded, meta.ragaNotes);
+        const semitones = getSemitones(charAdded, meta.scale);
         audioEngine.playNote(semitones, meta.sruthi, 0.3);
       }
 
@@ -189,25 +192,34 @@ export default function App() {
       const content = event.target?.result as string;
       if (!content) return;
 
-      const metaMatch = content.match(/MetaS: (.*?) \| MetaE:/s);
+      // More flexible regex for meta tags
+      const metaMatch = content.match(/MetaS:\s*(.*?)\s*MetaE:/s);
       if (metaMatch) {
         const metaStr = metaMatch[1];
-        const parts = metaStr.split(' | ');
+        const parts = metaStr.split(/\s*\|\s*/);
         const newMeta = { ...meta };
         parts.forEach(part => {
-          const [key, value] = part.split(': ');
+          const colonIndex = part.indexOf(':');
+          if (colonIndex === -1) return;
+          
+          const key = part.substring(0, colonIndex).trim();
+          const value = part.substring(colonIndex + 1).trim();
+
           if (key === 'Song') newMeta.song = value;
           if (key === 'Raga') newMeta.raga = value;
-          if (key === 'RagaNotes') newMeta.ragaNotes = value;
-          if (key === 'Beats') newMeta.beats = parseInt(value);
-          if (key === 'Nadai') newMeta.nadai = parseInt(value);
+          if (key === 'Scale' || key === 'RagaNotes') newMeta.scale = value;
+          if (key === 'Beats') newMeta.beats = parseInt(value) || 8;
+          if (key === 'Nadai') newMeta.nadai = parseInt(value) || 4;
           if (key === 'Sruthi') newMeta.sruthi = value;
-          if (key === 'BPM') newMeta.bpm = parseInt(value);
+          if (key === 'BPM') newMeta.bpm = parseInt(value) || 80;
+          if (key === 'Thala') newMeta.thala = value;
+          if (key === 'Edam') newMeta.edam = value;
+          if (key === 'Tags') newMeta.tags = value;
         });
         setMeta(newMeta);
         
         // Split by MetaE: and take everything after
-        const partsAfterMeta = content.split('| MetaE:');
+        const partsAfterMeta = content.split(/MetaE:\s*/);
         if (partsAfterMeta.length > 1) {
           let notationContent = partsAfterMeta[1];
           // Remove leading newline if exists
@@ -216,6 +228,9 @@ export default function App() {
           }
           setNotes(notationContent);
         }
+      } else {
+        // Fallback: If no meta tags, just load the whole content as notes
+        setNotes(content);
       }
     };
     reader.readAsText(file);
@@ -224,7 +239,7 @@ export default function App() {
   };
 
   const saveFile = () => {
-    const content = `MetaS: Song: ${meta.song} | Raga: ${meta.raga} | RagaNotes: ${meta.ragaNotes} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | MetaE:
+    const content = `MetaS: Song: ${meta.song} | Raga: ${meta.raga} | Scale: ${meta.scale} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | Thala: ${meta.thala} | Edam: ${meta.edam} | Tags: ${meta.tags} | MetaE:
 ${notes}`;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -250,12 +265,13 @@ ${notes}`;
     
     // Parse notes into playable units (handle R2, etc.)
     const playableUnits: string[] = [];
-    const rawUnits = notes.match(/([SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|)/gi) || [];
+    // Regex to match notes, symbols, and labels (text ending with :)
+    const rawUnits = notes.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|)/gi) || [];
     
     // Filter out | for timing but keep for structure if needed
-    // Actually, let's just skip | in the playback loop without incrementing time
+    // Skip labels (units ending with :)
     rawUnits.forEach(u => {
-      if (u !== '|') playableUnits.push(u);
+      if (u !== '|' && !u.endsWith(':')) playableUnits.push(u);
     });
 
     let currentIndex = 0;
@@ -279,7 +295,7 @@ ${notes}`;
       }
 
       if (char !== ',') {
-        const semitones = getSemitones(char, meta.ragaNotes);
+        const semitones = getSemitones(char, meta.scale);
         audioEngine.playNote(semitones, meta.sruthi, noteDuration / 1000);
       }
 
@@ -304,9 +320,19 @@ ${notes}`;
   }, [isPlaying]);
 
   const renderHighlightedNotes = () => {
-    const units = notes.match(/([SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\n| )/gi) || [];
+    const units = notes.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\n| )/gi) || [];
     return units.map((char, i) => {
       let color = 'text-gray-800';
+      
+      // Handle labels (text ending with :)
+      if (char.endsWith(':')) {
+        return (
+          <span key={i} className="text-gray-400 font-bold italic mr-2">
+            {char}
+          </span>
+        );
+      }
+
       const isAbove = Object.values(DOT_ABOVE_MAP).some(v => char.startsWith(v));
       const isBelow = Object.values(DOT_BELOW_MAP).some(v => char.startsWith(v)) || char.includes('\u0323');
       
@@ -362,69 +388,99 @@ ${notes}`;
             <h1 className="text-2xl font-serif italic font-bold tracking-tight">Carnatic Notation Writer</h1>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-11 gap-2">
             <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Song</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Song</label>
               <input 
                 type="text" 
                 value={meta.song}
                 onChange={e => setMeta({...meta, song: e.target.value})}
-                placeholder="Song Name"
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/5"
+                placeholder="Song"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
             <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Raga</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Raga</label>
               <input 
                 type="text" 
                 value={meta.raga}
                 onChange={e => setMeta({...meta, raga: e.target.value})}
-                placeholder="Raga Name"
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/5"
+                placeholder="Raga"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
             <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Raga Notes</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Scale</label>
               <input 
                 type="text" 
-                value={meta.ragaNotes}
-                onChange={e => setMeta({...meta, ragaNotes: e.target.value})}
-                placeholder="e.g. R2 G3 M1"
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/5"
+                value={meta.scale}
+                onChange={e => setMeta({...meta, scale: e.target.value})}
+                placeholder="Scale"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Thala</label>
+              <input 
+                type="text" 
+                value={meta.thala}
+                onChange={e => setMeta({...meta, thala: e.target.value})}
+                placeholder="Thala"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Edam</label>
+              <input 
+                type="text" 
+                value={meta.edam}
+                onChange={e => setMeta({...meta, edam: e.target.value})}
+                placeholder="Edam"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Tags</label>
+              <input 
+                type="text" 
+                value={meta.tags}
+                onChange={e => setMeta({...meta, tags: e.target.value})}
+                placeholder="Tags"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Beats</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Beats</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setMeta({...meta, beats: Math.max(1, meta.beats - 1)})} className="p-2 hover:bg-gray-50"><Minus className="w-3 h-3"/></button>
-                <input type="number" value={meta.beats} readOnly className="w-full text-center text-sm focus:outline-none"/>
-                <button onClick={() => setMeta({...meta, beats: meta.beats + 1})} className="p-2 hover:bg-gray-50"><Plus className="w-3 h-3"/></button>
+                <button onClick={() => setMeta({...meta, beats: Math.max(1, meta.beats - 1)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
+                <input type="number" value={meta.beats} readOnly className="w-full text-center text-xs focus:outline-none"/>
+                <button onClick={() => setMeta({...meta, beats: meta.beats + 1})} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Nadai</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Nadai</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setMeta({...meta, nadai: Math.max(1, meta.nadai - 1)})} className="p-2 hover:bg-gray-50"><Minus className="w-3 h-3"/></button>
-                <input type="number" value={meta.nadai} readOnly className="w-full text-center text-sm focus:outline-none"/>
-                <button onClick={() => setMeta({...meta, nadai: meta.nadai + 1})} className="p-2 hover:bg-gray-50"><Plus className="w-3 h-3"/></button>
+                <button onClick={() => setMeta({...meta, nadai: Math.max(1, meta.nadai - 1)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
+                <input type="number" value={meta.nadai} readOnly className="w-full text-center text-xs focus:outline-none"/>
+                <button onClick={() => setMeta({...meta, nadai: meta.nadai + 1})} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
               </div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1 mt-0.5">
                 <input 
                   type="checkbox" 
                   id="autoTala" 
                   checked={autoTala} 
                   onChange={e => setAutoTala(e.target.checked)}
-                  className="w-3 h-3 accent-black"
+                  className="w-2.5 h-2.5 accent-black"
                 />
-                <label htmlFor="autoTala" className="text-[9px] uppercase font-bold text-gray-400 cursor-pointer">Auto |</label>
+                <label htmlFor="autoTala" className="text-[8px] uppercase font-bold text-gray-400 cursor-pointer">Auto |</label>
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Sruthi</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Sruthi</label>
               <select 
                 value={meta.sruthi}
                 onChange={e => setMeta({...meta, sruthi: e.target.value})}
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none"
               >
                 {['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].map(s => (
                   <option key={s} value={s}>{s}</option>
@@ -432,11 +488,11 @@ ${notes}`;
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">BPM</label>
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">BPM</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setMeta({...meta, bpm: Math.max(20, meta.bpm - 5)})} className="p-2 hover:bg-gray-50"><Minus className="w-3 h-3"/></button>
-                <input type="number" value={meta.bpm} readOnly className="w-full text-center text-sm focus:outline-none"/>
-                <button onClick={() => setMeta({...meta, bpm: Math.min(300, meta.bpm + 5)})} className="p-2 hover:bg-gray-50"><Plus className="w-3 h-3"/></button>
+                <button onClick={() => setMeta({...meta, bpm: Math.max(20, meta.bpm - 5)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
+                <input type="number" value={meta.bpm} readOnly className="w-full text-center text-xs focus:outline-none"/>
+                <button onClick={() => setMeta({...meta, bpm: Math.min(300, meta.bpm + 5)})} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
               </div>
             </div>
           </div>
