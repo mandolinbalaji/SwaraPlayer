@@ -109,6 +109,48 @@ export default function App() {
     return cursorOffset;
   };
 
+  const redrawTala = (currentNotes: string, newNadai: number) => {
+    if (!autoTala) return currentNotes;
+    
+    const lines = currentNotes.split('\n');
+    const redrawnLines = lines.map(line => {
+      // Match labels, notes with swarasthanas/octaves, commas, bars, and spaces
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| )/gi) || [];
+      let noteCount = 0;
+      let newLine = '';
+      
+      units.forEach(unit => {
+        if (unit === '|') return; // Strip existing bars
+        
+        newLine += unit;
+        
+        // Check if it's a playable note or comma
+        const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(unit) && !unit.endsWith(':');
+        
+        if (isPlayable) {
+          noteCount++;
+          if (noteCount === newNadai) {
+            newLine += '|';
+            noteCount = 0;
+          }
+        }
+      });
+      
+      return newLine;
+    });
+    
+    return redrawnLines.join('\n');
+  };
+
+  const handleNadaiChange = (delta: number) => {
+    const newNadai = Math.max(1, meta.nadai + delta);
+    if (newNadai === meta.nadai) return;
+    
+    const updatedNotes = redrawTala(notes, newNadai);
+    setMeta({ ...meta, nadai: newNadai });
+    setNotes(updatedNotes);
+  };
+
   const handleNoteClick = (note: string) => {
     let charToAdd = note;
     if (octave === 'above' && DOT_ABOVE_MAP[note]) {
@@ -460,9 +502,9 @@ ${notes}`;
             <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Nadai</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setMeta({...meta, nadai: Math.max(1, meta.nadai - 1)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
+                <button onClick={() => handleNadaiChange(-1)} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
                 <input type="number" value={meta.nadai} readOnly className="w-full text-center text-xs focus:outline-none"/>
-                <button onClick={() => setMeta({...meta, nadai: meta.nadai + 1})} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
+                <button onClick={() => handleNadaiChange(1)} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
               </div>
               <div className="flex items-center gap-1 mt-0.5">
                 <input 
