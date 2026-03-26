@@ -183,6 +183,27 @@ export default function App() {
     const newValue = e.target.value.toUpperCase();
     const start = e.target.selectionStart;
     
+    // Stop any current playback when typing
+    if (isPlaying) {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      if (playbackRef.current) clearTimeout(playbackRef.current);
+    }
+
+    // Live Play Logic: Play the current line once after a short delay
+    if (livePlayTimeoutRef.current) clearTimeout(livePlayTimeoutRef.current);
+    
+    const lines = newValue.split('\n');
+    const linesBefore = newValue.substring(0, start || 0).split('\n');
+    const currentLineIdx = linesBefore.length - 1;
+    const currentLine = lines[currentLineIdx];
+
+    if (currentLine && currentLine.trim()) {
+      livePlayTimeoutRef.current = setTimeout(() => {
+        playNotation(currentLine, false); // Play once, no loop
+      }, 1000);
+    }
+
     // If a single character was added at the cursor
     if (newValue.length === notes.length + 1 && start !== null) {
       const charAdded = newValue[start - 1];
@@ -196,8 +217,27 @@ export default function App() {
       }
 
       const cursorOffset = insertNote(charAdded, start - 1, start - 1);
+      
+      // Update cursor position after state update
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.setSelectionRange(start + cursorOffset, start + cursorOffset);
+        }
+      }, 0);
     } else {
-      setNotes(newValue);
+      // If autoTala is on, redraw the current line as we type
+      if (autoTala) {
+        const redrawn = redrawTala(newValue, meta.nadai);
+        setNotes(redrawn);
+        // Try to maintain cursor position
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.setSelectionRange(start, start);
+          }
+        }, 0);
+      } else {
+        setNotes(newValue);
+      }
     }
   };
 
@@ -292,13 +332,19 @@ ${notes}`;
     URL.revokeObjectURL(url);
   };
 
-  const playNotation = async () => {
+  const playNotation = async (customNotes?: string | React.MouseEvent, loopOverride?: boolean) => {
     if (isPlaying) {
       setIsPlaying(false);
       isPlayingRef.current = false;
       if (playbackRef.current) clearTimeout(playbackRef.current);
       return;
     }
+
+    const notesToPlay = (typeof customNotes === 'string' ? customNotes : notes) || '';
+    if (!notesToPlay.trim()) return;
+
+    // Loop if it's a line play (string) and not explicitly overridden (e.g. for live play)
+    isLoopingRef.current = loopOverride !== undefined ? loopOverride : (typeof customNotes === 'string');
 
     await audioEngine.playClick(0.01);
 
@@ -308,7 +354,7 @@ ${notes}`;
     // Parse notes into playable units (handle R2, etc.)
     const playableUnits: string[] = [];
     // Regex to match notes, symbols, and labels (text ending with :)
-    const rawUnits = notes.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|)/gi) || [];
+    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|)/gi) || [];
     
     // Filter out | for timing but keep for structure if needed
     // Skip labels (units ending with :)
@@ -324,6 +370,11 @@ ${notes}`;
       if (!isPlayingRef.current) return;
       
       if (currentIndex >= playableUnits.length) {
+        if (isLoopingRef.current) {
+          currentIndex = 0;
+          playNext();
+          return;
+        }
         setIsPlaying(false);
         isPlayingRef.current = false;
         return;
@@ -357,63 +408,86 @@ ${notes}`;
 
   // Update isPlaying ref-like behavior for the recursive playNext
   const isPlayingRef = useRef(isPlaying);
+  const isLoopingRef = useRef(false);
+  const livePlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
   const renderHighlightedNotes = () => {
-    const units = notes.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\n| )/gi) || [];
-    return units.map((char, i) => {
-      let color = 'text-gray-800';
+    const lines = notes.split('\n');
+    
+    return lines.map((line, lineIdx) => {
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| )/gi) || [];
       
-      // Handle labels (text ending with :)
-      if (char.endsWith(':')) {
-        return (
-          <span key={i} className="text-gray-400 font-bold italic mr-2">
-            {char}
-          </span>
-        );
-      }
-
-      const isAbove = Object.values(DOT_ABOVE_MAP).some(v => char.startsWith(v));
-      const isBelow = Object.values(DOT_BELOW_MAP).some(v => char.startsWith(v)) || char.includes('\u0323');
-      
-      if (isAbove) color = 'text-red-600';
-      if (isBelow) color = 'text-blue-600';
-      
-      const handleClick = (e: React.MouseEvent) => {
-        if (octave === 'normal') return;
-        
-        e.stopPropagation();
-        // Only transform base notes
-        const baseMatch = char.match(/[SRGMPDN]/i);
-        if (!baseMatch) return;
-        
-        const baseNote = baseMatch[0].toUpperCase();
-        const suffix = char.length > 1 && !char.includes('\u0323') ? char.substring(1) : '';
-        
-        let newChar = char;
-        if (octave === 'above') {
-          newChar = (DOT_ABOVE_MAP[baseNote] || baseNote) + suffix;
-        } else if (octave === 'below') {
-          newChar = (DOT_BELOW_MAP[baseNote] || baseNote) + suffix;
-        }
-        
-        const newUnits = [...units];
-        newUnits[i] = newChar;
-        setNotes(newUnits.join(''));
-      };
-
-      if (char === '\n') return <br key={i} />;
-
       return (
-        <span 
-          key={i} 
-          onClick={handleClick}
-          className={`${color} font-mono text-[16px] leading-none inline-block ${octave !== 'normal' && /[SRGMPDN]/i.test(char) ? 'cursor-pointer hover:bg-black/5 rounded px-0.5' : ''}`}
-        >
-          {char}
-        </span>
+        <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem]">
+          {/* Line Play Button - Absolutely positioned in the gutter */}
+          <button 
+            onClick={() => playNotation(line, true)}
+            className="absolute -left-9 top-1 p-1.5 rounded-full bg-gray-100 hover:bg-black text-gray-400 hover:text-white transition-all pointer-events-auto shadow-sm z-40"
+            title="Play this line (Loop)"
+          >
+            <Play className="w-2.5 h-2.5 fill-current" />
+          </button>
+          
+          <div className="inline">
+            {units.map((char, i) => {
+              let color = 'text-gray-800';
+              
+              // Handle labels (text ending with :)
+              if (char.endsWith(':')) {
+                return (
+                  <span key={i} className="text-gray-400 font-bold italic mr-2">
+                    {char}
+                  </span>
+                );
+              }
+
+              const isAbove = Object.values(DOT_ABOVE_MAP).some(v => char.startsWith(v));
+              const isBelow = Object.values(DOT_BELOW_MAP).some(v => char.startsWith(v)) || char.includes('\u0323');
+              
+              if (isAbove) color = 'text-red-600';
+              if (isBelow) color = 'text-blue-600';
+              
+              const handleClick = (e: React.MouseEvent) => {
+                if (octave === 'normal') return;
+                
+                e.stopPropagation();
+                // Only transform base notes
+                const baseMatch = char.match(/[SRGMPDN]/i);
+                if (!baseMatch) return;
+                
+                const baseNote = baseMatch[0].toUpperCase();
+                const suffix = char.length > 1 && !char.includes('\u0323') ? char.substring(1) : '';
+                
+                let newChar = char;
+                if (octave === 'above') {
+                  newChar = (DOT_ABOVE_MAP[baseNote] || baseNote) + suffix;
+                } else if (octave === 'below') {
+                  newChar = (DOT_BELOW_MAP[baseNote] || baseNote) + suffix;
+                }
+                
+                // Reconstruct notes with the modified char
+                const allLines = [...lines];
+                const lineUnits = [...units];
+                lineUnits[i] = newChar;
+                allLines[lineIdx] = lineUnits.join('');
+                setNotes(allLines.join('\n'));
+              };
+
+              return (
+                <span 
+                  key={i} 
+                  onClick={handleClick}
+                  className={`${color} font-mono text-[16px] leading-none inline-block ${octave !== 'normal' && /[SRGMPDN]/i.test(char) ? 'pointer-events-auto cursor-pointer hover:bg-black/5 rounded px-0.5' : 'pointer-events-none'}`}
+                >
+                  {char}
+                </span>
+              );
+            })}
+          </div>
+        </div>
       );
     });
   };
@@ -545,16 +619,16 @@ ${notes}`;
           <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2 block">
             {octave !== 'normal' ? `Click notes below to apply Dot ${octave === 'above' ? 'Above' : 'Below'}` : 'Enter Notes'}
           </label>
-          <div className="relative min-h-[200px] bg-gray-50 rounded-xl border border-gray-200 p-4 font-mono text-[16px] leading-relaxed">
-            {/* Layered display for colors and interactive transformation */}
-            <div className={`absolute inset-0 p-4 whitespace-pre-wrap break-all ${octave !== 'normal' ? 'z-20' : 'z-0 pointer-events-none'}`}>
+          <div className="relative min-h-[200px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
+            {/* Layered display for colors and interactive transformation - Always on top but transparent to clicks except for buttons */}
+            <div className="absolute inset-0 p-4 pl-12 whitespace-pre-wrap break-all z-30 pointer-events-none font-mono text-[16px] leading-relaxed">
               {renderHighlightedNotes()}
             </div>
             <textarea
               ref={textareaRef}
               value={notes}
               onChange={handleTextareaChange}
-              className={`absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all ${octave !== 'normal' ? 'z-10' : 'z-20'}`}
+              className="absolute inset-0 w-full h-full p-4 pl-12 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all z-10 font-mono text-[16px] leading-relaxed"
               spellCheck={false}
               placeholder="Type S R G M P D N..."
             />
@@ -582,7 +656,7 @@ ${notes}`;
             <div className="h-6 w-[1px] bg-gray-300 mx-2" />
 
             <button 
-              onClick={playNotation}
+              onClick={() => playNotation()}
               className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all ${isPlaying ? 'bg-red-500 text-white shadow-red-200' : 'bg-black text-white shadow-gray-200'} shadow-lg active:scale-95 text-xs`}
             >
               {isPlaying ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
