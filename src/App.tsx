@@ -9,7 +9,8 @@ import {
   Save, 
   Trash2, 
   Delete, 
-  Music
+  Music,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { audioEngine } from './lib/audio';
@@ -177,6 +178,49 @@ export default function App() {
     if (confirm('Clear all notes?')) {
       setNotes('');
     }
+  };
+
+  const importFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      const metaMatch = content.match(/MetaS: (.*?) \| MetaE:/s);
+      if (metaMatch) {
+        const metaStr = metaMatch[1];
+        const parts = metaStr.split(' | ');
+        const newMeta = { ...meta };
+        parts.forEach(part => {
+          const [key, value] = part.split(': ');
+          if (key === 'Song') newMeta.song = value;
+          if (key === 'Raga') newMeta.raga = value;
+          if (key === 'RagaNotes') newMeta.ragaNotes = value;
+          if (key === 'Beats') newMeta.beats = parseInt(value);
+          if (key === 'Nadai') newMeta.nadai = parseInt(value);
+          if (key === 'Sruthi') newMeta.sruthi = value;
+          if (key === 'BPM') newMeta.bpm = parseInt(value);
+        });
+        setMeta(newMeta);
+        
+        // Split by MetaE: and take everything after
+        const partsAfterMeta = content.split('| MetaE:');
+        if (partsAfterMeta.length > 1) {
+          let notationContent = partsAfterMeta[1];
+          // Remove leading newline if exists
+          if (notationContent.startsWith('\n')) {
+            notationContent = notationContent.substring(1);
+          }
+          setNotes(notationContent);
+        }
+      }
+    };
+    reader.readAsText(file);
+    // Reset input value so the same file can be imported again
+    e.target.value = '';
   };
 
   const saveFile = () => {
@@ -454,6 +498,12 @@ ${notes}`;
               <Save className="w-3 h-3" />
               <span>Save File</span>
             </button>
+
+            <label className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95 text-xs cursor-pointer">
+              <Upload className="w-3 h-3" />
+              <span>Import File</span>
+              <input type="file" accept=".txt" onChange={importFile} className="hidden" />
+            </label>
           </div>
 
           <div className="grid grid-cols-4 sm:grid-cols-7 md:grid-cols-10 gap-2">
