@@ -71,6 +71,7 @@ const getSemitones = (note: string, ragaNotes: string) => {
 export default function App() {
   const [notes, setNotes] = useState('');
   const [meta, setMeta] = useState<MetaData>({
+    song: 'Varnam',
     raga: 'Mayamalavagowla',
     ragaNotes: 'R1 G3 M1 D1 N3',
     beats: 8,
@@ -148,7 +149,7 @@ export default function App() {
         audioEngine.playNote(semitones, meta.sruthi, 0.3);
       }
 
-      const cursorOffset = insertNote(charAdded, start - 1, notes.length);
+      const cursorOffset = insertNote(charAdded, start - 1, start - 1);
     } else {
       setNotes(newValue);
     }
@@ -179,13 +180,13 @@ export default function App() {
   };
 
   const saveFile = () => {
-    const content = `MetaS: Raga: ${meta.raga} | RagaNotes: ${meta.ragaNotes} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | MetaE:
+    const content = `MetaS: Song: ${meta.song} | Raga: ${meta.raga} | RagaNotes: ${meta.ragaNotes} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | MetaE:
 ${notes}`;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${meta.raga || 'notation'}.txt`;
+    a.download = `${meta.song || 'Song'}_${meta.raga || 'Raga'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -317,7 +318,27 @@ ${notes}`;
             <h1 className="text-2xl font-serif italic font-bold tracking-tight">Carnatic Notation Writer</h1>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Song</label>
+              <input 
+                type="text" 
+                value={meta.song}
+                onChange={e => setMeta({...meta, song: e.target.value})}
+                placeholder="Song Name"
+                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+              <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Raga</label>
+              <input 
+                type="text" 
+                value={meta.raga}
+                onChange={e => setMeta({...meta, raga: e.target.value})}
+                placeholder="Raga Name"
+                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
             <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
               <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Raga Notes</label>
               <input 
@@ -400,20 +421,38 @@ ${notes}`;
 
         {/* Keyboard Section */}
         <div className="p-6 bg-gray-50 border-t border-gray-100">
-          <div className="flex flex-wrap gap-2 justify-center mb-6">
+          <div className="flex flex-wrap gap-2 justify-center items-center mb-6">
             <button 
               onClick={() => setOctave(octave === 'above' ? 'normal' : 'above')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${octave === 'above' ? 'bg-red-500 text-white border-red-600 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-red-300'}`}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full border transition-all ${octave === 'above' ? 'bg-red-500 text-white border-red-600 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-red-300'}`}
             >
-              <ChevronUp className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Dot Above</span>
+              <ChevronUp className="w-3 h-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Dot Above</span>
             </button>
             <button 
               onClick={() => setOctave(octave === 'below' ? 'normal' : 'below')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${octave === 'below' ? 'bg-blue-500 text-white border-blue-600 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full border transition-all ${octave === 'below' ? 'bg-blue-500 text-white border-blue-600 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}
             >
-              <ChevronDown className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Dot Below</span>
+              <ChevronDown className="w-3 h-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Dot Below</span>
+            </button>
+            
+            <div className="h-6 w-[1px] bg-gray-300 mx-2" />
+
+            <button 
+              onClick={playNotation}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all ${isPlaying ? 'bg-red-500 text-white shadow-red-200' : 'bg-black text-white shadow-gray-200'} shadow-lg active:scale-95 text-xs`}
+            >
+              {isPlaying ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+              <span>{isPlaying ? 'Stop' : 'Play'}</span>
+            </button>
+
+            <button 
+              onClick={saveFile}
+              className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95 text-xs"
+            >
+              <Save className="w-3 h-3" />
+              <span>Save File</span>
             </button>
           </div>
 
@@ -443,26 +482,6 @@ ${notes}`;
           </div>
         </div>
 
-        {/* Action Footer */}
-        <div className="p-6 flex items-center justify-between bg-white border-t border-gray-100">
-          <div className="flex gap-3">
-            <button 
-              onClick={playNotation}
-              className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${isPlaying ? 'bg-red-500 text-white shadow-red-200' : 'bg-black text-white shadow-gray-200'} shadow-lg active:scale-95`}
-            >
-              {isPlaying ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-              <span>{isPlaying ? 'Stop' : 'Play'}</span>
-            </button>
-          </div>
-          
-          <button 
-            onClick={saveFile}
-            className="flex items-center gap-2 px-6 py-3 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95"
-          >
-            <Save className="w-4 h-4" />
-            <span>Save File</span>
-          </button>
-        </div>
       </div>
 
       <div className="max-w-4xl mx-auto mt-8 text-center">

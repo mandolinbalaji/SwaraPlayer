@@ -1,6 +1,7 @@
 export type Octave = 'normal' | 'above' | 'below';
 
 export interface MetaData {
+  song: string;
   raga: string;
   ragaNotes: string; // e.g. "R2 G3 M1 D2 N3"
   beats: number;

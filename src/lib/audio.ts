@@ -1,4 +1,4 @@
-import { SRUTHI_FREQUENCIES, NOTE_MAPPINGS } from '../types';
+import { SRUTHI_FREQUENCIES } from '../types';
 
 class AudioEngine {
   private audioCtx: AudioContext | null = null;
