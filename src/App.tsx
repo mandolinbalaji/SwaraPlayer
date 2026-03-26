@@ -422,8 +422,8 @@ ${notes}`;
     <div className="min-h-screen bg-[#F5F2ED] text-[#1A1A1A] p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
         {/* Header / Meta Section */}
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-black rounded-lg">
               <Music className="w-6 h-6 text-white" />
             </div>
@@ -529,7 +529,7 @@ ${notes}`;
                 ))}
               </select>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 col-span-2 md:col-span-2">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">BPM</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <button onClick={() => setMeta({...meta, bpm: Math.max(20, meta.bpm - 5)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
