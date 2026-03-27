@@ -116,8 +116,8 @@ export default function App() {
       if (forceLine !== undefined && idx !== forceLine) return line;
       if (!autoTala && forceLine === undefined) return line;
       
-      // Match labels, notes, commas, bars, spaces, braces {}, and blocks [N:...]
-      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
+      // Match labels, notes, commas, bars, spaces, braces {}, blocks [N:...], and hyphen -
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
       let beatProgress = 0;
       let newLine = '';
       let speedMultiplier = 1;
@@ -135,6 +135,7 @@ export default function App() {
           return;
         }
         if (unit === ']') { nadaiOverride = null; newLine += unit; return; }
+        if (unit === '-') { newLine += unit; return; } // Hyphen has zero duration
         
         newLine += unit;
         
@@ -147,31 +148,20 @@ export default function App() {
           } else {
             beatProgress += (speedMultiplier / newNadai);
           }
-          
-          // If we hit a beat boundary (1.0, 2.0, etc.)
-          // Use epsilon for float math
-          if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-            // Check if we are inside a bracket. If so, wait for the closing bracket.
-            // But for the "Format" button, we want to place it immediately after the bracket if it ends there.
-            // We'll handle the "}|" logic by looking ahead or just letting the next iteration handle it.
-            // Actually, a simpler way: if the next unit is } or ], don't add | yet.
-          }
         }
       });
       
-      // Secondary pass to fix | placement around brackets
-      // This is better handled by a more robust parser
       return newLine;
     });
     
     return redrawnLines.join('\n');
   };
 
-  // Improved Formatter that handles the "}|" requirement
+  // Improved Formatter that handles the "}|" requirement and hyphens
   const formatLine = (line: string) => {
     // 1. Strip bars
     let clean = line.replace(/\|/g, '');
-    const units = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,| |\{|\}|\[\d+:|\])/gi) || [];
+    const units = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,| |\{|\}|\[\d+:|\]|-)/gi) || [];
     
     let beatProgress = 0;
     let formatted = '';
@@ -188,6 +178,17 @@ export default function App() {
 
       formatted += unit;
 
+      if (unit === '-') {
+        // If the hyphen follows a beat boundary, add the bar after it
+        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
+          const next = units[i+1];
+          if (next !== '}' && next !== ']') {
+            formatted += '|';
+          }
+        }
+        continue;
+      }
+
       const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(unit) && !unit.endsWith(':');
       if (isPlayable) {
         if (nadaiOverride) beatProgress += (1 / nadaiOverride);
@@ -195,16 +196,19 @@ export default function App() {
 
         // Check for beat boundary
         if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-          // Look ahead: if next is } or ], wait
+          // Look ahead: if next is } or ] or -, wait (if - is followed by } or ])
           const next = units[i+1];
-          if (next !== '}' && next !== ']') {
+          if (next !== '}' && next !== ']' && next !== '-') {
             formatted += '|';
           }
         }
       } else if (unit === '}' || unit === ']') {
         // If we just closed a bracket and we are at a beat boundary, add bar
         if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-          formatted += '|';
+          // Look ahead: if next is -, wait
+          if (units[i+1] !== '-') {
+            formatted += '|';
+          }
         }
       }
     }
@@ -417,7 +421,7 @@ ${notes}`;
     
     // Parse notes into playable units
     const playableUnits: { char: string, duration: number }[] = [];
-    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\])/gi) || [];
+    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\]|-)/gi) || [];
     
     const beatDuration = (60 / meta.bpm) * 1000;
     const baseNoteDuration = beatDuration / meta.nadai;
@@ -433,6 +437,7 @@ ${notes}`;
         return;
       }
       if (u === ']') { nadaiOverride = null; return; }
+      if (u === '-') return; // Hyphen has zero duration
 
       if (u !== '|' && !u.endsWith(':') && u !== ' ') {
         let duration = baseNoteDuration * speedMultiplier;
@@ -506,7 +511,7 @@ ${notes}`;
     const lines = notes.split('\n');
     
     return lines.map((line, lineIdx) => {
-      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
       
       let currentBrace: { startIdx: number, count: number } | null = null;
       let currentNadaiBlock: { startIdx: number, nadai: number } | null = null;
@@ -540,6 +545,10 @@ ${notes}`;
             {units.map((char, i) => {
               let color = 'text-gray-800';
               
+              if (char === '-') {
+                return <span key={i} className="text-gray-300 mx-0.5 font-bold">{char}</span>;
+              }
+
               if (char === '{') {
                 currentBrace = { startIdx: i, count: 0 };
                 let j = i + 1;
@@ -625,10 +634,23 @@ ${notes}`;
     });
   };
 
-  const wrapSelection = (prefix: string, suffix: string) => {
+  const wrapSelection = (prefix: string, suffix: string, replacement?: string) => {
     if (!textareaRef.current) return;
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
+    
+    if (start === end && replacement) {
+      const newText = notes.substring(0, start) + replacement + notes.substring(end);
+      setNotes(newText);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(start + replacement.length, start + replacement.length);
+        }
+      }, 0);
+      return;
+    }
+
     if (start === end) return;
 
     const selectedText = notes.substring(start, end);
@@ -652,7 +674,7 @@ ${notes}`;
     const fullLines = notes.split('\n');
     const currentLine = fullLines[currentLineIdx] || '';
 
-    const units = currentLine.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
+    const units = currentLine.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
     
     let beatProgress = 0;
     let speedMultiplier = 1;
@@ -667,6 +689,7 @@ ${notes}`;
       if (u.startsWith('[')) nadaiOverride = parseInt(u.match(/\d+/)![0]);
       if (u === ']') nadaiOverride = null;
       if (u === '|') return;
+      if (u === '-') return; // Hyphen has zero duration
 
       const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(u) && !u.endsWith(':');
       if (isPlayable) {
@@ -869,6 +892,14 @@ ${notes}`;
             >
               <Hash className="w-3 h-3" />
               Misram (7)
+            </button>
+            <button 
+              onClick={() => wrapSelection('', '', '-')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+              title="Insert hyphen for visual grouping"
+            >
+              <Minus className="w-3 h-3" />
+              Hyphen (-)
             </button>
             <div className="w-px h-6 bg-gray-200 mx-1 self-center" />
             <button 
