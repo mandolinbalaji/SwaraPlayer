@@ -10,7 +10,16 @@ import {
   Trash2, 
   Delete, 
   Music,
-  Upload
+  Upload,
+  Download,
+  Settings,
+  Info,
+  FileText,
+  Share2,
+  Wand2,
+  Zap,
+  Layers,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { audioEngine } from './lib/audio';
@@ -93,34 +102,39 @@ export default function App() {
     let insertion = charToAdd;
     let cursorOffset = charToAdd.length;
 
-    if (autoTala && charToAdd !== '|' && charToAdd !== ' ' && charToAdd !== '\n') {
-      const textBefore = notes.substring(0, start) + charToAdd;
-      const graphemesBefore = getGraphemes(textBefore);
-      const notesOnlyBefore = graphemesBefore.filter(g => !['|', ' ', '\n'].includes(g));
-      
-      if (notesOnlyBefore.length > 0 && notesOnlyBefore.length % meta.nadai === 0) {
-        insertion = charToAdd + '|';
-        cursorOffset = charToAdd.length + 1;
-      }
-    }
-
+    // Auto-Tala bar insertion disabled during typing as requested
+    // Users will use the "Format Line" (🪄) button instead
+    
     const newNotes = notes.substring(0, start) + insertion + notes.substring(end);
     setNotes(newNotes);
     return cursorOffset;
   };
 
-  const redrawTala = (currentNotes: string, newNadai: number) => {
-    if (!autoTala) return currentNotes;
-    
+  const redrawTala = (currentNotes: string, newNadai: number, forceLine?: number) => {
     const lines = currentNotes.split('\n');
-    const redrawnLines = lines.map(line => {
-      // Match labels, notes with swarasthanas/octaves, commas, bars, and spaces
-      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| )/gi) || [];
-      let noteCount = 0;
+    const redrawnLines = lines.map((line, idx) => {
+      if (forceLine !== undefined && idx !== forceLine) return line;
+      if (!autoTala && forceLine === undefined) return line;
+      
+      // Match labels, notes, commas, bars, spaces, braces {}, and blocks [N:...]
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
+      let beatProgress = 0;
       let newLine = '';
+      let speedMultiplier = 1;
+      let nadaiOverride = null;
       
       units.forEach(unit => {
         if (unit === '|') return; // Strip existing bars
+        
+        if (unit === '{') { speedMultiplier = 0.5; newLine += unit; return; }
+        if (unit === '}') { speedMultiplier = 1; newLine += unit; return; }
+        if (unit.startsWith('[')) {
+          const n = parseInt(unit.match(/\d+/)![0]);
+          nadaiOverride = n;
+          newLine += unit;
+          return;
+        }
+        if (unit === ']') { nadaiOverride = null; newLine += unit; return; }
         
         newLine += unit;
         
@@ -128,18 +142,73 @@ export default function App() {
         const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(unit) && !unit.endsWith(':');
         
         if (isPlayable) {
-          noteCount++;
-          if (noteCount === newNadai) {
-            newLine += '|';
-            noteCount = 0;
+          if (nadaiOverride) {
+            beatProgress += (1 / nadaiOverride);
+          } else {
+            beatProgress += (speedMultiplier / newNadai);
+          }
+          
+          // If we hit a beat boundary (1.0, 2.0, etc.)
+          // Use epsilon for float math
+          if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
+            // Check if we are inside a bracket. If so, wait for the closing bracket.
+            // But for the "Format" button, we want to place it immediately after the bracket if it ends there.
+            // We'll handle the "}|" logic by looking ahead or just letting the next iteration handle it.
+            // Actually, a simpler way: if the next unit is } or ], don't add | yet.
           }
         }
       });
       
+      // Secondary pass to fix | placement around brackets
+      // This is better handled by a more robust parser
       return newLine;
     });
     
     return redrawnLines.join('\n');
+  };
+
+  // Improved Formatter that handles the "}|" requirement
+  const formatLine = (line: string) => {
+    // 1. Strip bars
+    let clean = line.replace(/\|/g, '');
+    const units = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,| |\{|\}|\[\d+:|\])/gi) || [];
+    
+    let beatProgress = 0;
+    let formatted = '';
+    let speedMultiplier = 1;
+    let nadaiOverride = null;
+
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
+      
+      if (unit === '{') speedMultiplier = 0.5;
+      if (unit === '}') speedMultiplier = 1;
+      if (unit.startsWith('[')) nadaiOverride = parseInt(unit.match(/\d+/)![0]);
+      if (unit === ']') nadaiOverride = null;
+
+      formatted += unit;
+
+      const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(unit) && !unit.endsWith(':');
+      if (isPlayable) {
+        if (nadaiOverride) beatProgress += (1 / nadaiOverride);
+        else beatProgress += (speedMultiplier / meta.nadai);
+
+        // Check for beat boundary
+        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
+          // Look ahead: if next is } or ], wait
+          const next = units[i+1];
+          if (next !== '}' && next !== ']') {
+            formatted += '|';
+          }
+        }
+      } else if (unit === '}' || unit === ']') {
+        // If we just closed a bracket and we are at a beat boundary, add bar
+        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
+          formatted += '|';
+        }
+      }
+    }
+    return formatted;
   };
 
   const handleNadaiChange = (delta: number) => {
@@ -181,10 +250,10 @@ export default function App() {
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.toUpperCase();
-    const start = e.target.selectionStart;
+    const start = e.target.selectionStart || 0;
     
     // Stop any current playback when typing
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       setIsPlaying(false);
       isPlayingRef.current = false;
       if (playbackRef.current) clearTimeout(playbackRef.current);
@@ -194,18 +263,18 @@ export default function App() {
     if (livePlayTimeoutRef.current) clearTimeout(livePlayTimeoutRef.current);
     
     const lines = newValue.split('\n');
-    const linesBefore = newValue.substring(0, start || 0).split('\n');
+    const linesBefore = newValue.substring(0, start).split('\n');
     const currentLineIdx = linesBefore.length - 1;
     const currentLine = lines[currentLineIdx];
 
     if (currentLine && currentLine.trim()) {
       livePlayTimeoutRef.current = setTimeout(() => {
         playNotation(currentLine, false); // Play once, no loop
-      }, 1000);
+      }, 800);
     }
 
     // If a single character was added at the cursor
-    if (newValue.length === notes.length + 1 && start !== null) {
+    if (newValue.length === notes.length + 1) {
       const charAdded = newValue[start - 1];
       
       // Play note immediately for keyboard feedback
@@ -225,19 +294,14 @@ export default function App() {
         }
       }, 0);
     } else {
-      // If autoTala is on, redraw the current line as we type
-      if (autoTala) {
-        const redrawn = redrawTala(newValue, meta.nadai);
-        setNotes(redrawn);
-        // Try to maintain cursor position
-        setTimeout(() => {
-          if (textareaRef.current) {
-            textareaRef.current.setSelectionRange(start, start);
-          }
-        }, 0);
-      } else {
-        setNotes(newValue);
-      }
+      // Auto-Tala redrawing disabled during typing
+      setNotes(newValue);
+      // Try to maintain cursor position
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.setSelectionRange(start, start);
+        }
+      }, 0);
     }
   };
 
@@ -351,20 +415,36 @@ ${notes}`;
     setIsPlaying(true);
     isPlayingRef.current = true;
     
-    // Parse notes into playable units (handle R2, etc.)
-    const playableUnits: string[] = [];
-    // Regex to match notes, symbols, and labels (text ending with :)
-    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|)/gi) || [];
+    // Parse notes into playable units
+    const playableUnits: { char: string, duration: number }[] = [];
+    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\])/gi) || [];
     
-    // Filter out | for timing but keep for structure if needed
-    // Skip labels (units ending with :)
+    const beatDuration = (60 / meta.bpm) * 1000;
+    const baseNoteDuration = beatDuration / meta.nadai;
+    
+    let speedMultiplier = 1;
+    let nadaiOverride = null;
+
     rawUnits.forEach(u => {
-      if (u !== '|' && !u.endsWith(':')) playableUnits.push(u);
+      if (u === '{') { speedMultiplier = 0.5; return; }
+      if (u === '}') { speedMultiplier = 1; return; }
+      if (u.startsWith('[')) {
+        nadaiOverride = parseInt(u.match(/\d+/)![0]);
+        return;
+      }
+      if (u === ']') { nadaiOverride = null; return; }
+
+      if (u !== '|' && !u.endsWith(':') && u !== ' ') {
+        let duration = baseNoteDuration * speedMultiplier;
+        if (nadaiOverride) {
+          duration = beatDuration / nadaiOverride;
+        }
+        playableUnits.push({ char: u, duration });
+      }
     });
 
     let currentIndex = 0;
-    const beatDuration = (60 / meta.bpm) * 1000;
-    const noteDuration = beatDuration / meta.nadai;
+    let totalElapsedBeats = 0;
 
     const playNext = async () => {
       if (!isPlayingRef.current) return;
@@ -372,6 +452,7 @@ ${notes}`;
       if (currentIndex >= playableUnits.length) {
         if (isLoopingRef.current) {
           currentIndex = 0;
+          totalElapsedBeats = 0;
           playNext();
           return;
         }
@@ -380,20 +461,27 @@ ${notes}`;
         return;
       }
 
-      const char = playableUnits[currentIndex];
+      const unit = playableUnits[currentIndex];
+      const char = unit.char;
+      const currentNoteDuration = unit.duration;
       
-      // Play click on every beat start
-      if (currentIndex % meta.nadai === 0) {
+      // Metronome Click Logic: Play click on every beat boundary
+      // We track total elapsed beats and play click when we cross an integer
+      const currentBeatVal = currentNoteDuration / beatDuration;
+      
+      // Play click if we are at the very start OR if we just crossed a beat boundary
+      if (currentIndex === 0 || Math.floor(totalElapsedBeats + 0.001) > Math.floor(totalElapsedBeats - (playableUnits[currentIndex-1]?.duration / beatDuration) + 0.001)) {
         audioEngine.playClick();
       }
 
       if (char !== ',') {
         const semitones = getSemitones(char, meta.scale);
-        audioEngine.playNote(semitones, meta.sruthi, noteDuration / 1000);
+        audioEngine.playNote(semitones, meta.sruthi, currentNoteDuration / 1000);
       }
 
+      totalElapsedBeats += currentBeatVal;
       currentIndex++;
-      playbackRef.current = window.setTimeout(playNext, noteDuration);
+      playbackRef.current = window.setTimeout(playNext, currentNoteDuration);
     };
 
     playNext();
@@ -418,30 +506,76 @@ ${notes}`;
     const lines = notes.split('\n');
     
     return lines.map((line, lineIdx) => {
-      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| )/gi) || [];
+      const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
       
+      let currentBrace: { startIdx: number, count: number } | null = null;
+      let currentNadaiBlock: { startIdx: number, nadai: number } | null = null;
+
       return (
-        <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem]">
-          {/* Line Play Button - Absolutely positioned in the gutter */}
-          <button 
-            onClick={() => playNotation(line, true)}
-            className="absolute -left-9 top-1 p-1.5 rounded-full bg-gray-100 hover:bg-black text-gray-400 hover:text-white transition-all pointer-events-auto shadow-sm z-40"
-            title="Play this line (Loop)"
-          >
-            <Play className="w-2.5 h-2.5 fill-current" />
-          </button>
+        <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem] group">
+          {/* Line Controls */}
+          <div className="absolute -left-16 top-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40 pointer-events-auto">
+            <button 
+              onClick={() => {
+                const formatted = formatLine(line);
+                const allLines = notes.split('\n');
+                allLines[lineIdx] = formatted;
+                setNotes(allLines.join('\n'));
+              }}
+              className="p-1.5 rounded-full bg-gray-100 hover:bg-purple-600 text-gray-400 hover:text-white transition-all shadow-sm"
+              title="Format this line (🪄)"
+            >
+              <Wand2 className="w-2.5 h-2.5" />
+            </button>
+            <button 
+              onClick={() => playNotation(line, true)}
+              className="p-1.5 rounded-full bg-gray-100 hover:bg-black text-gray-400 hover:text-white transition-all shadow-sm"
+              title="Play this line (Loop)"
+            >
+              <Play className="w-2.5 h-2.5 fill-current" />
+            </button>
+          </div>
           
           <div className="inline">
             {units.map((char, i) => {
               let color = 'text-gray-800';
               
-              // Handle labels (text ending with :)
-              if (char.endsWith(':')) {
+              if (char === '{') {
+                currentBrace = { startIdx: i, count: 0 };
+                let j = i + 1;
+                while (j < units.length && units[j] !== '}') {
+                  const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(units[j]) && !units[j].endsWith(':');
+                  if (isPlayable) currentBrace.count++;
+                  j++;
+                }
+                const isOdd = currentBrace.count % 2 !== 0;
+                return <span key={i} className={`font-bold ${isOdd ? 'text-red-600' : 'text-red-400'}`}>{char}</span>;
+              }
+
+              if (char === '}') {
+                const isOdd = currentBrace ? currentBrace.count % 2 !== 0 : false;
+                currentBrace = null;
+                return <span key={i} className={`font-bold ${isOdd ? 'text-red-600' : 'text-red-400'}`}>{char}</span>;
+              }
+
+              if (char.startsWith('[')) {
+                const n = parseInt(char.match(/\d+/)![0]);
+                currentNadaiBlock = { startIdx: i, nadai: n };
                 return (
-                  <span key={i} className="text-gray-400 font-bold italic mr-2">
+                  <span key={i} className="relative font-bold text-purple-400">
+                    <span className="absolute -top-3 left-0 text-[8px] text-purple-600">{n}</span>
                     {char}
                   </span>
                 );
+              }
+
+              if (char === ']') {
+                currentNadaiBlock = null;
+                return <span key={i} className="font-bold text-purple-400">{char}</span>;
+              }
+
+              if (char.endsWith(':')) {
+                return <span key={i} className="text-gray-400 font-bold italic mr-2">{char}</span>;
               }
 
               const isAbove = Object.values(DOT_ABOVE_MAP).some(v => char.startsWith(v));
@@ -450,25 +584,24 @@ ${notes}`;
               if (isAbove) color = 'text-red-600';
               if (isBelow) color = 'text-blue-600';
               
+              if (currentBrace && currentBrace.count % 2 !== 0) {
+                color = 'text-red-600 underline decoration-dotted';
+              } else if (currentBrace) {
+                color += ' border-t border-red-300';
+              } else if (currentNadaiBlock) {
+                color += ' border-t border-purple-300';
+              }
+              
               const handleClick = (e: React.MouseEvent) => {
                 if (octave === 'normal') return;
-                
                 e.stopPropagation();
-                // Only transform base notes
                 const baseMatch = char.match(/[SRGMPDN]/i);
                 if (!baseMatch) return;
-                
                 const baseNote = baseMatch[0].toUpperCase();
                 const suffix = char.length > 1 && !char.includes('\u0323') ? char.substring(1) : '';
-                
                 let newChar = char;
-                if (octave === 'above') {
-                  newChar = (DOT_ABOVE_MAP[baseNote] || baseNote) + suffix;
-                } else if (octave === 'below') {
-                  newChar = (DOT_BELOW_MAP[baseNote] || baseNote) + suffix;
-                }
-                
-                // Reconstruct notes with the modified char
+                if (octave === 'above') newChar = (DOT_ABOVE_MAP[baseNote] || baseNote) + suffix;
+                else if (octave === 'below') newChar = (DOT_BELOW_MAP[baseNote] || baseNote) + suffix;
                 const allLines = [...lines];
                 const lineUnits = [...units];
                 lineUnits[i] = newChar;
@@ -480,7 +613,7 @@ ${notes}`;
                 <span 
                   key={i} 
                   onClick={handleClick}
-                  className={`${color} font-mono text-[16px] leading-none inline-block ${octave !== 'normal' && /[SRGMPDN]/i.test(char) ? 'pointer-events-auto cursor-pointer hover:bg-black/5 rounded px-0.5' : 'pointer-events-none'}`}
+                  className={`${color} font-mono text-[16px] ${octave !== 'normal' && /[SRGMPDN]/i.test(char) ? 'pointer-events-auto cursor-pointer hover:bg-black/5 rounded px-0.5' : 'pointer-events-none'}`}
                 >
                   {char}
                 </span>
@@ -490,6 +623,90 @@ ${notes}`;
         </div>
       );
     });
+  };
+
+  const wrapSelection = (prefix: string, suffix: string) => {
+    if (!textareaRef.current) return;
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    if (start === end) return;
+
+    const selectedText = notes.substring(start, end);
+    const newText = notes.substring(0, start) + prefix + selectedText + suffix + notes.substring(end);
+    setNotes(newText);
+    
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start, start + prefix.length + selectedText.length + suffix.length);
+      }
+    }, 0);
+  };
+
+  const getTalaMap = () => {
+    // Get current line
+    if (!textareaRef.current) return null;
+    const start = textareaRef.current.selectionStart || 0;
+    const lines = notes.substring(0, start).split('\n');
+    const currentLineIdx = lines.length - 1;
+    const fullLines = notes.split('\n');
+    const currentLine = fullLines[currentLineIdx] || '';
+
+    const units = currentLine.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\])/gi) || [];
+    
+    let beatProgress = 0;
+    let speedMultiplier = 1;
+    let nadaiOverride = null;
+    
+    const beatStates: { progress: number, isError: boolean }[] = [];
+    for (let i = 0; i < meta.beats; i++) beatStates.push({ progress: 0, isError: false });
+
+    units.forEach(u => {
+      if (u === '{') speedMultiplier = 0.5;
+      if (u === '}') speedMultiplier = 1;
+      if (u.startsWith('[')) nadaiOverride = parseInt(u.match(/\d+/)![0]);
+      if (u === ']') nadaiOverride = null;
+      if (u === '|') return;
+
+      const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(u) && !u.endsWith(':');
+      if (isPlayable) {
+        const val = nadaiOverride ? (1 / nadaiOverride) : (speedMultiplier / meta.nadai);
+        const currentBeatIdx = Math.floor(beatProgress + 0.001);
+        if (currentBeatIdx < meta.beats) {
+          beatStates[currentBeatIdx].progress += val;
+        }
+        beatProgress += val;
+      }
+    });
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-4 p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+        {beatStates.map((beat, i) => {
+          const isFull = Math.abs(beat.progress - 1) < 0.05;
+          const isOver = beat.progress > 1.05;
+          const isEmpty = beat.progress < 0.05;
+          
+          let bgColor = 'bg-gray-50';
+          if (isFull) bgColor = 'bg-green-50 border-green-200';
+          if (isOver) bgColor = 'bg-red-50 border-red-200';
+          if (!isEmpty && !isFull && !isOver) bgColor = 'bg-orange-50 border-orange-200';
+
+          return (
+            <div key={i} className={`w-12 h-10 rounded border flex flex-col items-center justify-center transition-colors ${bgColor}`}>
+              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Beat {i+1}</span>
+              <div className="flex gap-0.5 mt-1">
+                {Array.from({ length: 4 }).map((_, dotIdx) => (
+                  <div 
+                    key={dotIdx} 
+                    className={`w-1.5 h-1.5 rounded-full ${beat.progress > (dotIdx * 0.25) ? (isOver ? 'bg-red-400' : 'bg-green-400') : 'bg-gray-200'}`} 
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -619,20 +836,71 @@ ${notes}`;
           <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2 block">
             {octave !== 'normal' ? `Click notes below to apply Dot ${octave === 'above' ? 'Above' : 'Below'}` : 'Enter Notes'}
           </label>
-          <div className="relative min-h-[200px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
+          {/* Selection Helpers */}
+          <div className="flex flex-wrap gap-2 mb-4 p-2 bg-gray-50 rounded-lg border border-gray-100">
+            <button 
+              onClick={() => wrapSelection('{', '}')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"
+              title="Wrap selection in Mel-Kaala (2x speed)"
+            >
+              <Zap className="w-3 h-3" />
+              2x Speed
+            </button>
+            <button 
+              onClick={() => wrapSelection('[3:', ']')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-purple-600 hover:bg-purple-50 transition-colors shadow-sm"
+              title="Wrap selection in Thisram (3 notes/beat)"
+            >
+              <Hash className="w-3 h-3" />
+              Thisram (3)
+            </button>
+            <button 
+              onClick={() => wrapSelection('[5:', ']')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-purple-600 hover:bg-purple-50 transition-colors shadow-sm"
+              title="Wrap selection in Kandam (5 notes/beat)"
+            >
+              <Hash className="w-3 h-3" />
+              Kandam (5)
+            </button>
+            <button 
+              onClick={() => wrapSelection('[7:', ']')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-purple-600 hover:bg-purple-50 transition-colors shadow-sm"
+              title="Wrap selection in Misram (7 notes/beat)"
+            >
+              <Hash className="w-3 h-3" />
+              Misram (7)
+            </button>
+            <div className="w-px h-6 bg-gray-200 mx-1 self-center" />
+            <button 
+              onClick={() => {
+                const allLines = notes.split('\n');
+                const formatted = allLines.map(l => formatLine(l)).join('\n');
+                setNotes(formatted);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-md text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm"
+              title="Format all lines (🪄)"
+            >
+              <Wand2 className="w-3 h-3" />
+              Format All
+            </button>
+          </div>
+
+          <div className="relative min-h-[300px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
             {/* Layered display for colors and interactive transformation - Always on top but transparent to clicks except for buttons */}
-            <div className="absolute inset-0 p-4 pl-12 whitespace-pre-wrap break-all z-30 pointer-events-none font-mono text-[16px] leading-relaxed">
+            <div className="absolute inset-0 p-4 pl-12 whitespace-pre-wrap break-all z-30 pointer-events-none font-mono text-[16px] leading-relaxed select-none">
               {renderHighlightedNotes()}
             </div>
             <textarea
               ref={textareaRef}
               value={notes}
               onChange={handleTextareaChange}
-              className="absolute inset-0 w-full h-full p-4 pl-12 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all z-10 font-mono text-[16px] leading-relaxed"
+              className="absolute inset-0 w-full h-full p-4 pl-12 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all z-10 font-mono text-[16px] leading-relaxed border-none shadow-none ring-0"
               spellCheck={false}
               placeholder="Type S R G M P D N..."
             />
           </div>
+
+          {getTalaMap()}
         </div>
 
         {/* Keyboard Section */}
