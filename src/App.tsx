@@ -193,62 +193,72 @@ export default function App() {
 
   // Improved Formatter that handles the "}|" requirement and hyphens
   const formatLine = (line: string) => {
-    // Convert to uppercase first as requested
     const upperLine = line.toUpperCase();
-    // 1. Strip bars
-    let clean = upperLine.replace(/\|/g, '');
-    const units = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,| |\{|\}|\[\d+:|\]|-)/gi) || [];
+    // Strip bars and collapse multiple spaces
+    let clean = upperLine.replace(/\|/g, '').replace(/  +/g, ' ');
+    // Tokenize
+    const rawUnits = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDNṠṘĠṀṖḊṄṢṚṂḌṆ][123]?\u0323?|,| |\{|\}|\[\d+:|\]|-)/gi) || [];
+    // Filter out raw spaces to re-generate them correctly based on rules
+    const units = rawUnits.filter(u => u !== ' ');
     
     let beatProgress = 0;
     let formatted = '';
     let speedMultiplier = 1;
     let nadaiOverride = null;
 
+    const isVariant = (u: string) => /[123]/.test(u);
+    const isPlayable = (u: string) => /[SRGMPDNṠṘĠṀṖḊṄṢṚṂḌṆ,]/i.test(u) && !u.endsWith(':');
+
     for (let i = 0; i < units.length; i++) {
       const unit = units[i];
+      const nextUnit = i < units.length - 1 ? units[i+1] : null;
       
       if (unit === '{') speedMultiplier = 0.5;
       if (unit === '}') speedMultiplier = 1;
-      if (unit.startsWith('[')) nadaiOverride = parseInt(unit.match(/\d+/)![0]);
+      if (unit.startsWith('[')) {
+        const match = unit.match(/\d+/);
+        if (match) nadaiOverride = parseInt(match[0]);
+      }
       if (unit === ']') nadaiOverride = null;
 
       formatted += unit;
 
-      if (unit === '-') {
-        // If the hyphen follows a beat boundary, add the bar after it
-        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-          const next = units[i+1];
-          if (next !== '}' && next !== ']') {
-            formatted += '|';
-          }
-        }
-        continue;
-      }
-
-      const isPlayable = /[SRGMPDN]|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,/i.test(unit) && !unit.endsWith(':');
-      if (isPlayable) {
+      // Update beat progress
+      if (isPlayable(unit)) {
         if (nadaiOverride) beatProgress += (1 / nadaiOverride);
         else beatProgress += (speedMultiplier / meta.nadai);
+      }
 
-        // Check for beat boundary
-        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-          // Look ahead: if next is } or ] or -, wait (if - is followed by } or ])
-          const next = units[i+1];
-          if (next !== '}' && next !== ']' && next !== '-') {
+      const isAtBeatBoundary = Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0;
+
+      if (isAtBeatBoundary) {
+        // Add bar if we just finished a beat with a note, bracket, or hyphen
+        if (isPlayable(unit) || unit === '}' || unit === ']' || unit === '-') {
+          if (nextUnit !== '-' && nextUnit !== '}' && nextUnit !== ']') {
             formatted += '|';
           }
         }
-      } else if (unit === '}' || unit === ']') {
-        // If we just closed a bracket and we are at a beat boundary, add bar
-        if (Math.abs(beatProgress - Math.round(beatProgress)) < 0.001 && beatProgress > 0) {
-          // Look ahead: if next is -, wait
-          if (units[i+1] !== '-') {
-            formatted += '|';
+      } else {
+        // Not at beat boundary. Add space if:
+        // 1. Current unit is a label
+        // 2. Current unit is a playable note AND it's NOT a variant AND next unit is playable
+        if (unit.endsWith(':')) {
+          formatted += ' ';
+        } else if (isPlayable(unit)) {
+          if (!isVariant(unit) && nextUnit && isPlayable(nextUnit)) {
+            formatted += ' ';
           }
+        }
+      }
+      
+      // Special handling for hyphen at beat boundary
+      if (unit === '-' && isAtBeatBoundary && !formatted.endsWith('|')) {
+        if (nextUnit !== '}' && nextUnit !== ']') {
+          formatted += '|';
         }
       }
     }
-    return formatted;
+    return formatted.trim();
   };
 
   const handleNadaiChange = (delta: number) => {
