@@ -2,7 +2,10 @@ export type Octave = 'normal' | 'above' | 'below';
 
 export interface MetaData {
   song: string;
+  composer: string;
   raga: string;
+  arohana: string;
+  avarohana: string;
   scale: string; // e.g. "r2 g2 m1 d2 n2"
   beats: number;
   nadai: number;

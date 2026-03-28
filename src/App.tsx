@@ -82,7 +82,10 @@ export default function App() {
   const [notes, setNotes] = useState('');
   const [meta, setMeta] = useState<MetaData>({
     song: 'Varnam',
+    composer: '',
     raga: 'Mayamalavagowla',
+    arohana: '',
+    avarohana: '',
     scale: 'R1 G3 M1 D1 N3',
     beats: 8,
     nadai: 4,
@@ -93,13 +96,13 @@ export default function App() {
     tags: ''
   });
   const [octave, setOctave] = useState<Octave>('normal');
-  const [autoTala, setAutoTala] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const [activeLineIdx, setActiveLineIdx] = useState<number | null>(null);
   const [showOctaveToast, setShowOctaveToast] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -148,7 +151,6 @@ export default function App() {
     const lines = currentNotes.split('\n');
     const redrawnLines = lines.map((line, idx) => {
       if (forceLine !== undefined && idx !== forceLine) return line;
-      if (!autoTala && forceLine === undefined) return line;
       
       // Match labels, notes, commas, bars, spaces, braces {}, blocks [N:...], and hyphen -
       const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
@@ -193,6 +195,7 @@ export default function App() {
 
   // Improved Formatter that handles the "}|" requirement and hyphens
   const formatLine = (line: string) => {
+    if (/^TAGS\b/i.test(line.trim()) || /^LR:/i.test(line.trim())) return line;
     const upperLine = line.toUpperCase();
     // Strip bars and collapse multiple spaces
     let clean = upperLine.replace(/\|/g, '').replace(/  +/g, ' ');
@@ -317,7 +320,7 @@ export default function App() {
     const currentLineIdx = linesBefore.length - 1;
     const currentLine = lines[currentLineIdx];
 
-    if (currentLine && currentLine.trim()) {
+    if (currentLine && currentLine.trim() && !/^TAGS\b/i.test(currentLine.trim()) && !/^LR:/i.test(currentLine.trim())) {
       livePlayTimeoutRef.current = setTimeout(() => {
         playNotation(currentLine, false); // Play once, no loop
       }, 800);
@@ -402,7 +405,10 @@ export default function App() {
           const value = part.substring(colonIndex + 1).trim();
 
           if (key === 'Song') newMeta.song = value;
+          if (key === 'Composer') newMeta.composer = value;
           if (key === 'Raga') newMeta.raga = value;
+          if (key === 'Arohana') newMeta.arohana = value;
+          if (key === 'Avarohana') newMeta.avarohana = value;
           if (key === 'Scale' || key === 'RagaNotes') newMeta.scale = value;
           if (key === 'Beats') newMeta.beats = parseInt(value) || 8;
           if (key === 'Nadai') newMeta.nadai = parseInt(value) || 4;
@@ -434,16 +440,43 @@ export default function App() {
     e.target.value = '';
   };
 
-  const saveFile = () => {
-    const content = `MetaS: Song: ${meta.song} | Raga: ${meta.raga} | Scale: ${meta.scale} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | Thala: ${meta.thala} | Edam: ${meta.edam} | Tags: ${meta.tags} | MetaE:
+  const saveFile = async () => {
+    setSaveStatus('saving');
+    try {
+      const fileName = `${meta.song || 'Song'}_${meta.raga || 'Raga'}.txt`;
+      const content = `MetaS: Song: ${meta.song} | Composer: ${meta.composer} | Raga: ${meta.raga} | Arohana: ${meta.arohana} | Avarohana: ${meta.avarohana} | Scale: ${meta.scale} | Beats: ${meta.beats} | Nadai: ${meta.nadai} | Sruthi: ${meta.sruthi} | BPM: ${meta.bpm} | Thala: ${meta.thala} | Edam: ${meta.edam} | Tags: ${meta.tags} | MetaE:
 ${notes}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${meta.song || 'Song'}_${meta.raga || 'Raga'}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+      const entry = {
+        name: meta.song,
+        song: meta.song,
+        composer: meta.composer,
+        raga: meta.raga,
+        tala: meta.thala,
+        beats: String(meta.beats),
+        arohana: meta.arohana,
+        avarohana: meta.avarohana,
+        scale: meta.scale,
+        sruthi: meta.sruthi,
+        edam: meta.edam,
+        tags: meta.tags,
+        file: fileName,
+      };
+
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, content, entry }),
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
   };
 
   const playNotation = async (customNotes?: string | React.MouseEvent, loopOverride?: boolean, customLineIdx?: number) => {
@@ -498,6 +531,8 @@ ${notes}`;
     } else {
       const lines = notes.split('\n');
       lines.forEach((line, lineIdx) => {
+        const trimmedLine = line.trim();
+        if (/^TAGS\b/i.test(trimmedLine) || /^LR:/i.test(trimmedLine)) return;
         const rawUnits = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\]|-)/gi) || [];
         speedMultiplier = 1; // Reset per line
         nadaiOverride = null;
@@ -592,8 +627,32 @@ ${notes}`;
     const lines = notes.split('\n');
     
     return lines.map((line, lineIdx) => {
+      const trimmed = line.trim();
+
+      // TAGS line — render invisible (keeps line height for cursor alignment)
+      if (/^TAGS\b/i.test(trimmed)) {
+        return (
+          <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem]">
+            <span className="text-transparent select-none">{line}</span>
+          </div>
+        );
+      }
+
+      // LR: lyrics line — show text without tag, no controls
+      if (/^LR:/i.test(trimmed)) {
+        const prefixMatch = line.match(/^LR:\s*/i);
+        const prefix = prefixMatch ? prefixMatch[0] : '';
+        const lyrics = line.slice(prefix.length);
+        return (
+          <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem]">
+            <span className="text-transparent select-none">{prefix}</span>
+            <span className="text-gray-400 italic font-sans text-[15px]">{lyrics}</span>
+          </div>
+        );
+      }
+
       const units = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
-      
+
       let currentBrace: { startIdx: number, count: number } | null = null;
       let currentNadaiBlock: { startIdx: number, nadai: number } | null = null;
 
@@ -601,7 +660,7 @@ ${notes}`;
         <div key={lineIdx} className={`relative leading-relaxed min-h-[1.625rem] group transition-colors duration-200 ${activeLineIdx === lineIdx ? 'bg-yellow-100/50 rounded-md ring-1 ring-yellow-200' : ''}`}>
           {/* Line Controls */}
           <div className="absolute -left-16 top-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40 pointer-events-auto">
-            <button 
+            <button
               onClick={() => {
                 const formatted = formatLine(line);
                 const allLines = notes.split('\n');
@@ -613,7 +672,7 @@ ${notes}`;
             >
               <Wand2 className="w-2.5 h-2.5" />
             </button>
-            <button 
+            <button
               onClick={() => playNotation(line, true, lineIdx)}
               className="p-1.5 rounded-full bg-gray-100 hover:bg-black text-gray-400 hover:text-white transition-all shadow-sm"
               title="Play this line (Loop)"
@@ -755,6 +814,8 @@ ${notes}`;
     const fullLines = notes.split('\n');
     const currentLine = fullLines[currentLineIdx] || '';
 
+    if (/^TAGS\b/i.test(currentLine.trim()) || /^LR:/i.test(currentLine.trim())) return null;
+
     const units = currentLine.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\|| |\{|\}|\[\d+:|\]|-)/gi) || [];
     
     let beatProgress = 0;
@@ -850,65 +911,95 @@ ${notes}`;
             <h1 className="text-2xl font-serif italic font-bold tracking-tight">Carnatic Notation Writer</h1>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-11 gap-2">
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Song</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.song}
                 onChange={e => setMeta({...meta, song: e.target.value})}
                 placeholder="Song"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Composer</label>
+              <input
+                type="text"
+                value={meta.composer}
+                onChange={e => setMeta({...meta, composer: e.target.value})}
+                placeholder="Composer"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Raga</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.raga}
                 onChange={e => setMeta({...meta, raga: e.target.value})}
                 placeholder="Raga"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Arohana</label>
+              <input
+                type="text"
+                value={meta.arohana}
+                onChange={e => setMeta({...meta, arohana: e.target.value})}
+                placeholder="S R G M P D N Ṡ"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Avarohana</label>
+              <input
+                type="text"
+                value={meta.avarohana}
+                onChange={e => setMeta({...meta, avarohana: e.target.value})}
+                placeholder="Ṡ N D P M G R S"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Scale</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.scale}
                 onChange={e => setMeta({...meta, scale: e.target.value})}
                 placeholder="Scale"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Thala</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.thala}
                 onChange={e => setMeta({...meta, thala: e.target.value})}
                 placeholder="Thala"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Edam</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.edam}
                 onChange={e => setMeta({...meta, edam: e.target.value})}
                 placeholder="Edam"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Tags</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={meta.tags}
                 onChange={e => setMeta({...meta, tags: e.target.value})}
                 placeholder="Tags"
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
+                className="w-[9rem] bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/5"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -926,16 +1017,6 @@ ${notes}`;
                 <input type="number" value={meta.nadai} readOnly className="w-full text-center text-xs focus:outline-none"/>
                 <button onClick={() => handleNadaiChange(1)} className="p-1.5 hover:bg-gray-50"><Plus className="w-2.5 h-2.5"/></button>
               </div>
-              <div className="flex items-center gap-1 mt-0.5">
-                <input 
-                  type="checkbox" 
-                  id="autoTala" 
-                  checked={autoTala} 
-                  onChange={e => setAutoTala(e.target.checked)}
-                  className="w-2.5 h-2.5 accent-black"
-                />
-                <label htmlFor="autoTala" className="text-[8px] uppercase font-bold text-gray-400 cursor-pointer">Auto |</label>
-              </div>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Sruthi</label>
@@ -949,7 +1030,7 @@ ${notes}`;
                 ))}
               </select>
             </div>
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-2">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase tracking-widest font-bold text-gray-400">BPM</label>
               <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <button onClick={() => setMeta({...meta, bpm: Math.max(20, meta.bpm - 5)})} className="p-1.5 hover:bg-gray-50"><Minus className="w-2.5 h-2.5"/></button>
@@ -962,6 +1043,7 @@ ${notes}`;
 
         {/* Editor Section */}
         <div className="p-6 relative">
+          {getTalaMap()}
           <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2 block">
             {octave !== 'normal' ? `Click notes below to apply Dot ${octave === 'above' ? 'Above' : 'Below'}` : 'Enter Notes'}
           </label>
@@ -1053,8 +1135,6 @@ ${notes}`;
               placeholder="Type S R G M P D N..."
             />
           </div>
-
-          {getTalaMap()}
         </div>
 
         {/* Keyboard Section */}
@@ -1085,12 +1165,17 @@ ${notes}`;
               <span>{isPlaying ? 'Stop' : 'Play'}</span>
             </button>
 
-            <button 
+            <button
               onClick={saveFile}
-              className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95 text-xs"
+              disabled={saveStatus === 'saving'}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all active:scale-95 text-xs border ${
+                saveStatus === 'saved' ? 'bg-green-50 border-green-300 text-green-700' :
+                saveStatus === 'error' ? 'bg-red-50 border-red-300 text-red-700' :
+                'bg-white border-gray-200 hover:bg-gray-50'
+              }`}
             >
               <Save className="w-3 h-3" />
-              <span>Save File</span>
+              <span>{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error' : 'Save File'}</span>
             </button>
 
             <label className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95 text-xs cursor-pointer">

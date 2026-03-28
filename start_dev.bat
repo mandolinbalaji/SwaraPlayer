@@ -20,6 +20,9 @@ if not exist "node_modules\" (
     )
 )
 
+echo Starting API server...
+start "SwaraPlayer API" cmd /c "npm run server"
+
 echo Starting the development server...
 call npm run dev
 
