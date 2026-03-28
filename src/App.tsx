@@ -24,59 +24,14 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { audioEngine } from './lib/audio';
 import { MetaData, Octave, SWARASTHANA_OFFSETS, BASE_NOTE_TO_DEFAULT_SWARASTHANA } from './types';
-
-const DOT_ABOVE_MAP: Record<string, string> = {
-  'S': 'Ṡ', 'R': 'Ṙ', 'G': 'Ġ', 'M': 'Ṁ', 'P': 'Ṗ', 'D': 'Ḋ', 'N': 'Ṅ'
-};
-
-const DOT_BELOW_MAP: Record<string, string> = {
-  'S': 'Ṣ', 'R': 'Ṛ', 'G': 'G\u0323', 'M': 'Ṃ', 'P': 'P\u0323', 'D': 'Ḍ', 'N': 'Ṇ'
-};
-
-const REVERSE_MAP: Record<string, string> = {
-  'Ṡ': 'S', 'Ṙ': 'R', 'Ġ': 'G', 'Ṁ': 'M', 'Ṗ': 'P', 'Ḋ': 'D', 'Ṅ': 'N',
-  'Ṣ': 'S', 'Ṛ': 'R', 'G\u0323': 'G', 'Ṃ': 'M', 'P\u0323': 'P', 'Ḍ': 'D', 'Ṇ': 'N'
-};
-
-const getGraphemes = (text: string) => {
-  if (typeof Intl.Segmenter === 'function') {
-    const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
-    return Array.from(segmenter.segment(text)).map(s => s.segment);
-  }
-  return text.match(/.\u0323?|./gu) || [];
-};
-
-const getSemitones = (note: string, scale: string) => {
-  // 1. Parse scale into a map
-  const defaultMap: Record<string, number> = {};
-  const ragaMatches = scale.match(/[SRGMPDN][123]?/gi) || [];
-  ragaMatches.forEach(m => {
-    const base = m[0].toUpperCase();
-    defaultMap[base] = SWARASTHANA_OFFSETS[m.toUpperCase()] ?? 0;
-  });
-
-  // 2. Identify base note and octave
-  let base = note[0].toUpperCase();
-  let octaveOffset = 0;
-  
-  if (Object.values(DOT_ABOVE_MAP).includes(note)) {
-    base = REVERSE_MAP[note];
-    octaveOffset = 12;
-  } else if (Object.values(DOT_BELOW_MAP).includes(note) || note.includes('\u0323')) {
-    base = REVERSE_MAP[note] || note.replace('\u0323', '');
-    octaveOffset = -12;
-  }
-
-  // 3. Handle specific swarasthana in the note itself (e.g. "R2")
-  const swaraMatch = note.match(/[SRGMPDN][123]/i);
-  if (swaraMatch) {
-    return (SWARASTHANA_OFFSETS[swaraMatch[0].toUpperCase()] ?? 0) + octaveOffset;
-  }
-
-  // 4. Use default from ragaNotes or fallback
-  const semitones = defaultMap[base] ?? SWARASTHANA_OFFSETS[BASE_NOTE_TO_DEFAULT_SWARASTHANA[base]] ?? 0;
-  return semitones + octaveOffset;
-};
+import { 
+  DOT_ABOVE_MAP, 
+  DOT_BELOW_MAP, 
+  REVERSE_MAP, 
+  getGraphemes, 
+  getSemitones 
+} from './lib/music';
+import { exportMidi } from './lib/midi';
 
 export default function App() {
   const [notes, setNotes] = useState('');
@@ -847,7 +802,7 @@ ${notes}`;
             <div className="p-2 bg-black rounded-lg">
               <Music className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-serif italic font-bold tracking-tight">Carnatic Notation Writer</h1>
+            <h1 className="text-2xl font-serif italic font-bold tracking-tight">Carnatic Notation Composer</h1>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-11 gap-2">
@@ -1091,6 +1046,14 @@ ${notes}`;
             >
               <Save className="w-3 h-3" />
               <span>Save File</span>
+            </button>
+
+            <button 
+              onClick={() => exportMidi(notes, meta)}
+              className="flex items-center gap-2 px-5 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-bold hover:bg-blue-100 transition-all active:scale-95 text-xs"
+            >
+              <Download className="w-3 h-3" />
+              <span>Export MIDI</span>
             </button>
 
             <label className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-gray-200 font-bold hover:bg-gray-50 transition-all active:scale-95 text-xs cursor-pointer">
