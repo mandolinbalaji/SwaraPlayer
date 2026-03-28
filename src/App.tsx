@@ -98,6 +98,7 @@ export default function App() {
   const playbackRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const [activeLineIdx, setActiveLineIdx] = useState<number | null>(null);
   const [showOctaveToast, setShowOctaveToast] = useState(false);
 
   useEffect(() => {
@@ -435,11 +436,12 @@ ${notes}`;
     URL.revokeObjectURL(url);
   };
 
-  const playNotation = async (customNotes?: string | React.MouseEvent, loopOverride?: boolean) => {
+  const playNotation = async (customNotes?: string | React.MouseEvent, loopOverride?: boolean, customLineIdx?: number) => {
     if (isPlaying) {
       setIsPlaying(false);
       isPlayingRef.current = false;
       if (playbackRef.current) clearTimeout(playbackRef.current);
+      setActiveLineIdx(null);
       return;
     }
 
@@ -455,8 +457,7 @@ ${notes}`;
     isPlayingRef.current = true;
     
     // Parse notes into playable units
-    const playableUnits: { char: string, duration: number }[] = [];
-    const rawUnits = notesToPlay.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\]|-)/gi) || [];
+    const playableUnits: { char: string, duration: number, lineIdx: number, unitIdx: number }[] = [];
     
     const beatDuration = (60 / meta.bpm) * 1000;
     const baseNoteDuration = beatDuration / meta.nadai;
@@ -464,30 +465,61 @@ ${notes}`;
     let speedMultiplier = 1;
     let nadaiOverride = null;
 
-    rawUnits.forEach(u => {
-      if (u === '{') { speedMultiplier = 0.5; return; }
-      if (u === '}') { speedMultiplier = 1; return; }
-      if (u.startsWith('[')) {
-        nadaiOverride = parseInt(u.match(/\d+/)![0]);
-        return;
-      }
-      if (u === ']') { nadaiOverride = null; return; }
-      if (u === '-') return; // Hyphen has zero duration
-
-      if (u !== '|' && !u.endsWith(':') && u !== ' ') {
-        let duration = baseNoteDuration * speedMultiplier;
-        if (nadaiOverride) {
-          duration = beatDuration / nadaiOverride;
+    if (typeof customNotes === 'string' && customLineIdx !== undefined) {
+      const rawUnits = customNotes.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\]|-)/gi) || [];
+      rawUnits.forEach((u, unitIdx) => {
+        if (u === '{') { speedMultiplier = 0.5; return; }
+        if (u === '}') { speedMultiplier = 1; return; }
+        if (u.startsWith('[')) {
+          nadaiOverride = parseInt(u.match(/\d+/)![0]);
+          return;
         }
-        playableUnits.push({ char: u, duration });
-      }
-    });
+        if (u === ']') { nadaiOverride = null; return; }
+        if (u === '-') return;
+
+        if (u !== '|' && !u.endsWith(':') && u !== ' ') {
+          let duration = baseNoteDuration * speedMultiplier;
+          if (nadaiOverride) {
+            duration = beatDuration / nadaiOverride;
+          }
+          playableUnits.push({ char: u, duration, lineIdx: customLineIdx, unitIdx });
+        }
+      });
+    } else {
+      const lines = notes.split('\n');
+      lines.forEach((line, lineIdx) => {
+        const rawUnits = line.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,|\||\{|\}|\[\d+:|\]|-)/gi) || [];
+        speedMultiplier = 1; // Reset per line
+        nadaiOverride = null;
+        rawUnits.forEach((u, unitIdx) => {
+          if (u === '{') { speedMultiplier = 0.5; return; }
+          if (u === '}') { speedMultiplier = 1; return; }
+          if (u.startsWith('[')) {
+            nadaiOverride = parseInt(u.match(/\d+/)![0]);
+            return;
+          }
+          if (u === ']') { nadaiOverride = null; return; }
+          if (u === '-') return;
+
+          if (u !== '|' && !u.endsWith(':') && u !== ' ') {
+            let duration = baseNoteDuration * speedMultiplier;
+            if (nadaiOverride) {
+              duration = beatDuration / nadaiOverride;
+            }
+            playableUnits.push({ char: u, duration, lineIdx, unitIdx });
+          }
+        });
+      });
+    }
 
     let currentIndex = 0;
     let totalElapsedBeats = 0;
 
     const playNext = async () => {
-      if (!isPlayingRef.current) return;
+      if (!isPlayingRef.current) {
+        setActiveLineIdx(null);
+        return;
+      }
       
       if (currentIndex >= playableUnits.length) {
         if (isLoopingRef.current) {
@@ -498,12 +530,16 @@ ${notes}`;
         }
         setIsPlaying(false);
         isPlayingRef.current = false;
+        setActiveLineIdx(null);
         return;
       }
 
       const unit = playableUnits[currentIndex];
       const char = unit.char;
       const currentNoteDuration = unit.duration;
+      
+      // Update active line for UI highlighting
+      setActiveLineIdx(unit.lineIdx);
       
       // Metronome Click Logic: Play click on every beat boundary
       // We track total elapsed beats and play click when we cross an integer
@@ -552,7 +588,7 @@ ${notes}`;
       let currentNadaiBlock: { startIdx: number, nadai: number } | null = null;
 
       return (
-        <div key={lineIdx} className="relative leading-relaxed min-h-[1.625rem] group">
+        <div key={lineIdx} className={`relative leading-relaxed min-h-[1.625rem] group transition-colors duration-200 ${activeLineIdx === lineIdx ? 'bg-yellow-100/50 rounded-md ring-1 ring-yellow-200' : ''}`}>
           {/* Line Controls */}
           <div className="absolute -left-16 top-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40 pointer-events-auto">
             <button 
@@ -568,7 +604,7 @@ ${notes}`;
               <Wand2 className="w-2.5 h-2.5" />
             </button>
             <button 
-              onClick={() => playNotation(line, true)}
+              onClick={() => playNotation(line, true, lineIdx)}
               className="p-1.5 rounded-full bg-gray-100 hover:bg-black text-gray-400 hover:text-white transition-all shadow-sm"
               title="Play this line (Loop)"
             >

@@ -16,6 +16,12 @@ class AudioEngine {
     }
   }
 
+  public async resume() {
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
+  }
+
   public async playNote(semitones: number, sruthi: string, duration: number) {
     await this.init();
     if (!this.audioCtx || !this.masterGain) return;
