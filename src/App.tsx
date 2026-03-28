@@ -97,6 +97,13 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, [notes]);
 
   const insertNote = (charToAdd: string, start: number, end: number) => {
     let insertion = charToAdd;
@@ -916,16 +923,26 @@ ${notes}`;
             </button>
           </div>
 
-          <div className="relative min-h-[300px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
+          <div className="relative h-[700px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
             {/* Layered display for colors and interactive transformation - Always on top but transparent to clicks except for buttons */}
-            <div className="absolute inset-0 p-4 pl-12 whitespace-pre-wrap break-all z-30 pointer-events-none font-mono text-[16px] leading-relaxed select-none">
+            <div 
+              ref={highlightRef}
+              style={{ scrollbarGutter: 'stable' }}
+              className="absolute inset-0 p-4 pl-20 whitespace-pre-wrap break-all z-30 pointer-events-none font-mono text-[16px] leading-relaxed select-none overflow-y-hidden"
+            >
               {renderHighlightedNotes()}
             </div>
             <textarea
               ref={textareaRef}
               value={notes}
               onChange={handleTextareaChange}
-              className="absolute inset-0 w-full h-full p-4 pl-12 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all z-10 font-mono text-[16px] leading-relaxed border-none shadow-none ring-0"
+              onScroll={(e) => {
+                if (highlightRef.current) {
+                  highlightRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop;
+                }
+              }}
+              style={{ scrollbarGutter: 'stable' }}
+              className="absolute inset-0 w-full h-full p-4 pl-20 bg-transparent text-transparent caret-black focus:outline-none resize-none whitespace-pre-wrap break-all z-10 font-mono text-[16px] leading-relaxed border-none shadow-none ring-0 overflow-y-auto"
               spellCheck={false}
               placeholder="Type S R G M P D N..."
             />
