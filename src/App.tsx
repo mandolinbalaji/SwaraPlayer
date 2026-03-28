@@ -98,6 +98,32 @@ export default function App() {
   const playbackRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const [showOctaveToast, setShowOctaveToast] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey) {
+        if (e.key.toLowerCase() === 'u') {
+          e.preventDefault();
+          setOctave('above');
+          setShowOctaveToast(true);
+          setTimeout(() => setShowOctaveToast(false), 1000);
+        } else if (e.key.toLowerCase() === 'd') {
+          e.preventDefault();
+          setOctave('below');
+          setShowOctaveToast(true);
+          setTimeout(() => setShowOctaveToast(false), 1000);
+        } else if (e.key.toLowerCase() === 'n') {
+          e.preventDefault();
+          setOctave('normal');
+          setShowOctaveToast(true);
+          setTimeout(() => setShowOctaveToast(false), 1000);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current && highlightRef.current) {
@@ -166,8 +192,10 @@ export default function App() {
 
   // Improved Formatter that handles the "}|" requirement and hyphens
   const formatLine = (line: string) => {
+    // Convert to uppercase first as requested
+    const upperLine = line.toUpperCase();
     // 1. Strip bars
-    let clean = line.replace(/\|/g, '');
+    let clean = upperLine.replace(/\|/g, '');
     const units = clean.match(/([A-Za-z0-9 ]+:|[SRGMPDN][123]?\u0323?|Ṡ|Ṙ|Ġ|Ṁ|Ṗ|Ḋ|Ṅ|Ṣ|Ṛ|Ṃ|Ḍ|Ṇ|,| |\{|\}|\[\d+:|\]|-)/gi) || [];
     
     let beatProgress = 0;
@@ -383,11 +411,11 @@ export default function App() {
           if (notationContent.startsWith('\n')) {
             notationContent = notationContent.substring(1);
           }
-          setNotes(notationContent);
+          setNotes(notationContent.toUpperCase());
         }
       } else {
         // Fallback: If no meta tags, just load the whole content as notes
-        setNotes(content);
+        setNotes(content.toUpperCase());
       }
     };
     reader.readAsText(file);
@@ -741,6 +769,31 @@ ${notes}`;
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] text-[#1A1A1A] p-4 md:p-8 font-sans">
+      {/* Floating Octave Bar - Fixed to Viewport */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-full border border-gray-200 shadow-lg hover:shadow-xl transition-all group">
+        <button 
+          onClick={() => setOctave('above')}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${octave === 'above' ? 'bg-red-500 text-white scale-110 shadow-md' : 'text-gray-400 hover:bg-gray-100'}`}
+          title="Dot Above (Alt+U)"
+        >
+          <ChevronUp className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={() => setOctave('normal')}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${octave === 'normal' ? 'bg-gray-800 text-white scale-110 shadow-md' : 'text-gray-400 hover:bg-gray-100'}`}
+          title="Normal (Alt+N)"
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={() => setOctave('below')}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${octave === 'below' ? 'bg-blue-500 text-white scale-110 shadow-md' : 'text-gray-400 hover:bg-gray-100'}`}
+          title="Dot Below (Alt+D)"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      </div>
+
       <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
         {/* Header / Meta Section */}
         <div className="p-4 border-b border-gray-100 bg-gray-50/50">
@@ -924,6 +977,13 @@ ${notes}`;
           </div>
 
           <div className="relative h-[700px] bg-gray-50 rounded-xl border border-gray-200 p-0 font-mono text-[16px] leading-relaxed overflow-hidden">
+            {/* Octave Toast */}
+            {showOctaveToast && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-black/80 text-white text-xs font-bold rounded-full backdrop-blur-md animate-in fade-in zoom-in duration-200">
+                Octave: {octave === 'above' ? 'Dot Above' : octave === 'below' ? 'Dot Below' : 'Normal'}
+              </div>
+            )}
+
             {/* Layered display for colors and interactive transformation - Always on top but transparent to clicks except for buttons */}
             <div 
               ref={highlightRef}
