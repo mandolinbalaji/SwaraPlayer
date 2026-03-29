@@ -1,0 +1,63 @@
+[
+  {
+    "name": "Raguvamsasudha",
+    "song": "Raguvamsasudha",
+    "composer": "PATNAM Subramanya iyer",
+    "raga": "Kadanakuthuhalam",
+    "tala": "",
+    "beats": "8",
+    "arohana": "S R M D N G P S",
+    "avarohana": "S N D P M G R S",
+    "scale": "R2 g3 m1 d2 n3",
+    "sruthi": "C#",
+    "edam": "7",
+    "tags": "Patnam",
+    "file": "Raguvamsasudha_Kadanakuthuhalam.txt",
+    "midiFile": "raguvamsasudha-kadanakuthuhalam.mid"
+  },
+  {
+    "name": "Makelara",
+    "song": "Makelara",
+    "composer": "Thyagaraja",
+    "raga": "Ravichandrika",
+    "tala": "",
+    "beats": "8",
+    "arohana": "S R2 G3 M1 D2 Ṡ",
+    "avarohana": "Ṡ N2 D2  M1 G3 R2 S",
+    "scale": "R2 G3 M1 D2 N2",
+    "sruthi": "C#",
+    "edam": "",
+    "tags": "",
+    "file": "Makelara_Ravichandrika.txt"
+  },
+  {
+    "name": "Threes",
+    "song": "Threes",
+    "composer": "Balaji",
+    "raga": "Mayamalavagowla",
+    "tala": "Adhi",
+    "beats": "8",
+    "arohana": "S R1 G3 M1 P D1 N3 S",
+    "avarohana": "S N3 D1 P M1 G3 R1 S",
+    "scale": "R1 G3 M1 D1 N3",
+    "sruthi": "C#",
+    "edam": "1",
+    "tags": "Threes ",
+    "file": "Threes_Mayamalavagowla.txt"
+  },
+  {
+    "name": "Varnam",
+    "song": "Varnam",
+    "composer": "",
+    "raga": "Mayamalavagowla",
+    "tala": "",
+    "beats": "3",
+    "arohana": "",
+    "avarohana": "",
+    "scale": "R1 G3 M1 D1 N3",
+    "sruthi": "C#",
+    "edam": "",
+    "tags": "",
+    "file": "Varnam_Mayamalavagowla.txt"
+  }
+]

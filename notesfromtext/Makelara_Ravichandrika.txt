@@ -1,0 +1,106 @@
+MetaS: Song: Makelara | Composer: Thyagaraja | Raga: Ravichandrika | Arohana: S R2 G3 M1 D2 Ṡ | Avarohana: Ṡ N2 D2  M1 G3 R2 S | Scale: R2 G3 M1 D2 N2 | Beats: 8 | Nadai: 4 | Sruthi: C# | BPM: 80 | Thala:  | Edam:  | Tags:  | MetaE:
+PALLAVI:
+
+LINE: |, , , , | , , *M, |,, G,| ,, M, | G, ,,| ,,  GR | GRS,| ,, R, 
+
+LR:             MĀ     KĒ     LA    RĀ        VI   CĀ      RA 
+
+
+LINE: |G, ,, |,, * M,| ,, D, |,, M, | G, ,,| ,,  RG | MG GR|S, R,  
+
+LR:   MU          MĀ     KĒ     LA   RĀ        VI   CĀ      RA 
+
+
+
+LINE: |G, ,, |,, *M, |, ,D,|,,N,  | NDDM |,  ,G M | G M GR|S, R, 
+
+LR:   MU        MĀ     KĒ     LA       RĀ       VI   CĀ      RA 
+
+
+
+LINE:  |G, ,,| ,, *M, |,, D, |,, Ṡ,  | DṠṘĠ | MĠ ṘṠ   | NDM G | RS,R 
+
+LR:   MU         MĀ     KĒ     LA     RĀ        VI   CĀ      RA 
+
+
+
+LINE:  |G, ,,| ,, *M, |M, D, |,, N,   | NDD,| ,,  D,  | Ṡ, ṠN| ND,, 
+
+LR:   MU          MA RU GAN NA          ŚRĪ     RĀ     MA   CAN         
+
+
+LINE:  |ṠNND|,, *M, |,, D, |,, Ṡ,    | DṠṘĠ|MĠ ṘṠ   | NDM M|GR SR  
+
+LR:   DRA         MU          MĀ     KĒ     LA      RĀ        VI   CĀ     
+
+
+
+LINE: |G, ,,| ,, *{MG}M, |D, ,,| ṠN    | NDD,| ,, D,  |, Ṡ, Ṡ, |ṠNND  
+
+LR:    RA     MU        MA RU    GAN NA ŚRĪ      RĀ        MA   CAN         
+
+
+
+LINE: |MDNṘ|ṠN *M,| ,, G, |,, M, | G, ,, |  ,,  ,, | ,,,, |  ,, ,,  
+
+LR:    DRA           MĀ     KĒ     LA   RĀ       
+
+
+
+ANUPALLAVI:
+
+LINE: , , , ,|, , M ,|N , N D|D , D ,|Ṡ , , ,|, , Ṙ Ġ|{Ṁ Ġ , Ṙ}, ,|, , Ġ M|
+
+LR:               SĀ     KĒ     TA   RĀ        JA        KU MĀ      
+
+
+
+LINE: Ġ R Ṡ ,|, , D ,|Ṡ , Ṡ N|N , D ,|M , , ,|D , , N|, , S N|N D , ,|
+LR:   RA           SAD    BHA    KTA            MAN    DĀ     RĀ   ŚRĪ    KA   
+
+
+
+LINE: {ṠNND}D,|,,*DṠ, |N, ND | D, D,   | Ṡ, MDṠ, Ṙ Ġ  | {ṀĠṘ} Ṙ, Ṙ Ġ 
+
+LR:   RA      SĀ     KĒ TA RĀ           JA        KU   MĀ        
+
+
+
+LINE:  |{ṀĠṘ,} Ṡ,| ,, *D, |Ṙ Ṡ, {ṠNN,} |D,  | DM, ,D,, | N,, | {ṠNN,} D,   
+
+LR:   RA           SAD    BHA   KTAMAN          DĀ        RĀ   ŚRĪ      KA 
+
+LINE: |{ṠNND,} D, *
+LR:    RA
+
+CHARANAM:
+
+LINE: |, , , ,| , , *M,| M, M,| ,, M, | {MG} G, ,|,,  GR | GRS,| ,, R, 
+
+LR:               JA TA GŪRC CI     NĀ    TA     KA SŪ     TRA MU 
+
+
+
+LINE:  |G, ,,|,, *D,|{ṠN},ND|          DMGM|GRS,} ,,MG |    | M, D,| ,, Ṡ N 
+
+LR:   NU JA GA MEL   LA                MEC     CA GA  KĀ     RA MU NA NI  
+
+
+
+LINE:  |, , , ,| , , *M, |N, ND | D, D, | Ṡ, ,,| ,,  Ṙ Ġ | {Ṁ Ġ Ṙ},,  | ,, Ġ M 
+
+LR:    ḌI            GA TI TAP  PA     KĀ       ḌIÑ    CĒ       VU SUM 
+
+
+LINE:  |Ġ R Ṡ, |,, *D, |Ṡ, ṠN|N,D,            | M, ,| ,D,, | N,, | {ṠNN,} D, 
+
+LR:    MI NA      TA TYĀ  GA                RĀ   JA  GI    RĪ   ŚA    VI NU   
+
+LINE: |{ṠNNDD,} *
+LR:    TA
+
+
+INFOS:
+HIGHER:"Ṡ", "Ṙ", "Ġ", "Ṁ", "Ṗ", "Ḋ", "Ṅ" "Ṡ", "Ṙ", "Ġ", "Ṁ", "Ṗ", "Ḋ", "Ṅ"
+LOWER:"Ṣ", "Ṛ", "G̣", "Ṃ", "P̣", "Ḍ", "Ṇ" "Ṣ", "Ṛ", "G̣", "Ṃ", "P̣", "Ḍ", "Ṇ"
+INFOE:

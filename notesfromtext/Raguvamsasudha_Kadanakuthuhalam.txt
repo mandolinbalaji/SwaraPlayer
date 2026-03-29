@@ -1,0 +1,33 @@
+MetaS: Song: Raguvamsasudha | Composer: PATNAM Subramanya iyer | Raga: Kadanakuthuhalam | Arohana: S R M D N G P S | Avarohana: S N D P M G R S | Scale: R2 g3 m1 d2 n3 | Beats: 8 | Nadai: 4 | Sruthi: C# | BPM: 80 | Thala:  | Edam: 7 | Tags: Patnam | MetaE:
+PALLAVI:
+
+, , , ,|, , S ,|R , M ,|, , M ,|G , , R|, , S ,|S , S Ṇ|Ḍ , P̣ ,|
+S , , ,|, , S ,|R , P ,|, , M ,|G , , R|, , S ,|S , S Ṇ|Ḍ , P̣ ,|
+S , , ,|, , S ,|R , M P|D , M ,|G , , R|, , S ,|S , S Ṇ|Ḍ , P̣ ,|
+S , , ,|, , S ,|R , M P|{Ṡ N D P}M ,|G , , R|, , S R|S R S Ṇ|Ḍ , P̣ ,|
+S , , ,|, , R ,|M , , D|, , N ,|G , , P|, , Ṡ ,|, , Ṡ Ṇ|Ḍ , P̣
+P M G R|S Ṇ R ,|M , D ,|, , N ,|G , P ,|, , Ṡ Ṙ|Ṗ Ṁ{Ġ Ṁ Ġ ,}|{Ṙ Ġ Ṙ , Ṡ Ṙ Ṡ ,}|
+N D P M|G R , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|
+ANUPALLAVI:
+, , , ,|, , G ,|P , Ṡ ,|, , Ṡ ,|Ṡ , , ,|, , Ṡ ,|, , Ṡ ,|, , Ṡ ,|
+, , Ṡ ,|, , G ,|P , , Ṡ|, , , Ṡ|, Ṡ , ,|, , , N|, , , D|, , , P|
+, , M ,|, , G ,|P , , Ṡ|, , , Ṡ|, Ṡ , ,|, , , -N|Ṡ N D -P|D P D -N|
+Ṡ D -P D|P D -G ,|P , , Ṡ|, , , Ṡ|, Ṡ , ,|, , , G|, P Ṡ N|, D , G|
+P N D ,|P , G ,|P , , Ṡ|, , , Ṡ|, Ṡ , ,|, , , Ṙ|, Ṡ , ,|N , , ,|
+P D N P|D P Ṡ ,|Ṡ , Ṡ N|D , N ,|M , , D|, , N ,|G , P ,|, , G P|
+S G P S|G P Ṡ ,|Ṡ , Ṡ N|D , N ,|M D M D|M D M D|G P G P|G P G P|
+S G P S|G P Ṡ ,|Ṡ , Ṡ N|D , N ,|M D M D|M D M D|G P G P|G P Ṡ N|
+D P M G|R S , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|
+CHITTAI SWARAM:
+, , , ,|, , S ,|R M G ,|R S R ,|R M D ,|D N G ,|G P Ṡ ,|Ṡ N D P|
+M G P M|G R S ,|, R M G|R S R ,|, R M D|D N G ,|, G P Ṡ|Ṡ N D P|
+M G P M|G R S R|R M M D|D N G P|P Ṡ Ṡ Ṙ|Ṙ Ṁ Ṁ Ġ|Ġ Ṙ Ṙ Ṡ|Ṡ N N D|
+D P P M|G R , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|
+CHARANAM:
+, , , ,|, , P ,|P , P ,|, , P ,|M , , M|, , R ,|M , G ,|, , R ,|
+S , R ,|S , S R|S R S Ṇ|Ḍ , P̣ ,|S , , ,|, , R ,|M , , G|, , R ,|
+S , R ,|S , , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|, , , ,|
+INFOS:
+HIGHER: Ṡ , Ṙ ,|Ġ , Ṁ ,|Ṗ , Ḋ ,|Ṅ Ṡ , Ṙ|, Ġ , Ṁ|, Ṗ , Ḋ|, Ṅ
+LOWER: Ṣ , Ṛ ,|G̣ , Ṃ ,|P̣ , Ḍ ,|Ṇ Ṣ , Ṛ|, G̣ , Ṃ|, P̣ , Ḍ|, Ṇ
+INFOE:

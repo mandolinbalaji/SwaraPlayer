@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"TimeSignature\\\\|time-signature\\\\|timesignature\" c:/iCloudDrive/SwaraPlayer/node_modules/midi-writer-js/ --include=*.js -l)"
+    ]
+  }
+}

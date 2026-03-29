@@ -1133,8 +1133,8 @@ ${notes}`;
               <span>{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error' : 'Save File'}</span>
             </button>
 
-            <button 
-              onClick={() => exportMidi(notes, meta)}
+            <button
+              onClick={() => exportMidi(notes, meta).catch(err => alert(err.message))}
               className="flex items-center gap-2 px-5 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-bold hover:bg-blue-100 transition-all active:scale-95 text-xs"
             >
               <Download className="w-3 h-3" />

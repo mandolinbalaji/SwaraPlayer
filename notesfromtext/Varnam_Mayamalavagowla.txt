@@ -1,0 +1,3 @@
+MetaS: Song: Varnam | Composer:  | Raga: Mayamalavagowla | Arohana:  | Avarohana:  | Scale: R1 G3 M1 D1 N3 | Beats: 3 | Nadai: 3 | Sruthi: C# | BPM: 80 | Thala:  | Edam:  | Tags:  | MetaE:
+S R G|R G M|G M P|M P D|P D N|D N Ṡ|N Ṡ Ṙ|Ṡ Ṙ Ġ|Ṙ Ġ Ṁ|Ġ Ṁ Ṗ|
+Ṗ Ṁ Ġ|Ṁ Ġ Ṙ|Ġ Ṙ Ṡ|Ṙ Ṡ N|Ṡ N D|N D P|D P M|P M G|M G R|G R S|

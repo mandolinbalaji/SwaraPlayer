@@ -2,9 +2,10 @@ import MidiWriter from 'midi-writer-js';
 import { MetaData } from '../types';
 import { getMidiNote, getGraphemes } from './music';
 
-export const exportMidi = (notes: string, meta: MetaData) => {
+export const exportMidi = async (notes: string, meta: MetaData): Promise<void> => {
   const track = new MidiWriter.Track();
   track.setTempo(meta.bpm);
+  track.setTimeSignature(meta.beats, 4);
   track.addEvent(new MidiWriter.ProgramChangeEvent({ instrument: 1 })); // Acoustic Grand Piano
 
   const lines = notes.split('\n');
@@ -76,11 +77,16 @@ export const exportMidi = (notes: string, meta: MetaData) => {
 
   const write = new MidiWriter.Writer(track);
   const dataUri = write.dataUri();
-  
-  const link = document.createElement('a');
-  link.href = dataUri;
-  link.download = `${meta.song}-${meta.raga}.mid`.toLowerCase().replace(/\s+/g, '-');
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const fileName = `${meta.song}-${meta.raga}.mid`.toLowerCase().replace(/\s+/g, '-');
+
+  const res = await fetch(`http://${window.location.hostname}:3001/api/save-midi`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName, dataUri }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(`Failed to save MIDI: ${err.error ?? res.statusText}`);
+  }
 };
